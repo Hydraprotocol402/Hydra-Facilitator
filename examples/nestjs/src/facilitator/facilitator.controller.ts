@@ -7,18 +7,25 @@ import {
   HttpStatus,
   BadRequestException,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { FacilitatorService } from "./facilitator.service";
 import { VerifyRequestDto } from "./dto/verify.dto";
 import { SettleRequestDto } from "./dto/settle.dto";
 import { PaymentPayloadSchema, PaymentRequirementsSchema } from "x402/types";
+import { PinoLogger } from "nestjs-pino";
 
 @Controller()
 export class FacilitatorController {
-  constructor(private readonly facilitatorService: FacilitatorService) {}
+  constructor(
+    private readonly facilitatorService: FacilitatorService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(FacilitatorController.name);
+  }
 
   @Get("verify")
+  @Throttle({ default: { limit: 200, ttl: 60000 } })
   getVerifyInfo() {
-    console.log("getVerifyInfo");
     return {
       endpoint: "/verify",
       description: "POST to verify x402 payments",
@@ -31,14 +38,22 @@ export class FacilitatorController {
 
   @Post("verify")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
   async verify(@Body() body: VerifyRequestDto) {
-    console.log("verify", body);
     try {
       // Validate schemas
       const paymentRequirements = PaymentRequirementsSchema.parse(
         body.paymentRequirements,
       );
       const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+
+      this.logger.info(
+        {
+          network: paymentRequirements.network,
+          scheme: paymentPayload.scheme,
+        },
+        "Verifying payment",
+      );
 
       return await this.facilitatorService.verifyPayment(
         paymentPayload,
@@ -48,6 +63,12 @@ export class FacilitatorController {
       if (error instanceof BadRequestException) {
         throw error;
       }
+
+      this.logger.error(
+        { error: error instanceof Error ? error.message : "Unknown error" },
+        "Payment verification failed",
+      );
+
       throw new BadRequestException(
         `Invalid request: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -55,8 +76,8 @@ export class FacilitatorController {
   }
 
   @Get("settle")
+  @Throttle({ default: { limit: 200, ttl: 60000 } })
   getSettleInfo() {
-    console.log("getSettleInfo");
     return {
       endpoint: "/settle",
       description: "POST to settle x402 payments",
@@ -69,14 +90,22 @@ export class FacilitatorController {
 
   @Post("settle")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   async settle(@Body() body: SettleRequestDto) {
-    console.log("settle", body);
     try {
       // Validate schemas
       const paymentRequirements = PaymentRequirementsSchema.parse(
         body.paymentRequirements,
       );
       const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+
+      this.logger.info(
+        {
+          network: paymentRequirements.network,
+          scheme: paymentPayload.scheme,
+        },
+        "Settling payment",
+      );
 
       return await this.facilitatorService.settlePayment(
         paymentPayload,
@@ -86,6 +115,12 @@ export class FacilitatorController {
       if (error instanceof BadRequestException) {
         throw error;
       }
+
+      this.logger.error(
+        { error: error instanceof Error ? error.message : "Unknown error" },
+        "Payment settlement failed",
+      );
+
       throw new BadRequestException(
         `Invalid request: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -93,8 +128,8 @@ export class FacilitatorController {
   }
 
   @Get("supported")
+  @Throttle({ default: { limit: 200, ttl: 60000 } })
   async getSupported() {
-    console.log("getSupported");
     return await this.facilitatorService.getSupportedPaymentKinds();
   }
 }

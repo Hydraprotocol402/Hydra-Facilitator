@@ -15,10 +15,16 @@ import {
   ConnectedClient,
 } from "x402/types";
 import { ConfigService } from "../config/config.service";
+import { PinoLogger } from "nestjs-pino";
 
 @Injectable()
 export class FacilitatorService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(FacilitatorService.name);
+  }
 
   async verifyPayment(
     paymentPayload: PaymentPayload,
@@ -52,6 +58,10 @@ export class FacilitatorService {
       if (error instanceof BadRequestException) {
         throw error;
       }
+      this.logger.error(
+        { error: error instanceof Error ? error.message : "Unknown error" },
+        "Verification failed",
+      );
       throw new BadRequestException(
         `Verification failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -86,16 +96,41 @@ export class FacilitatorService {
         );
       }
 
-      return await settle(
+      const result = await settle(
         signer,
         paymentPayload,
         paymentRequirements,
         this.configService.x402Config,
       );
+
+      if (result.success) {
+        this.logger.info(
+          {
+            transaction: result.transaction,
+            network: result.network,
+            payer: result.payer,
+          },
+          "Payment settled successfully",
+        );
+      } else {
+        this.logger.warn(
+          {
+            errorReason: result.errorReason,
+            payer: result.payer,
+          },
+          "Payment settlement failed",
+        );
+      }
+
+      return result;
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
       }
+      this.logger.error(
+        { error: error instanceof Error ? error.message : "Unknown error" },
+        "Settlement failed",
+      );
       throw new BadRequestException(
         `Settlement failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -135,9 +170,9 @@ export class FacilitatorService {
         });
       } catch (error) {
         // If signer creation fails, skip SVM
-        console.warn(
-          "Failed to create SVM signer for /supported endpoint:",
-          error,
+        this.logger.warn(
+          { error: error instanceof Error ? error.message : "Unknown error" },
+          "Failed to create SVM signer for /supported endpoint",
         );
       }
     }
