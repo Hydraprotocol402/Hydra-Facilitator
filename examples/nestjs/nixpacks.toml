@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ['nodejs_24', 'npm-9_x', 'openssl']
+
+[phases.install]
+cmds = ['npm install -g pnpm', 'cd ../.. && pnpm install']
+
+[phases.build]
+cmds = ['cd ../.. && pnpm build && cd examples/nestjs && pnpm build']
+
+[start]
+cmd = "node dist/main.js"
