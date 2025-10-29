@@ -1,0 +1,102 @@
+# Multi-stage Dockerfile for NestJS Facilitator
+# Build context should be repository root (where pnpm-workspace.yaml exists)
+#
+# Usage:
+#   docker build -f examples/nestjs/Dockerfile -t facilitator .
+#   (from repo root)
+
+# Stage 1: Root package builder
+FROM node:20-alpine AS root-builder
+
+# Install pnpm
+RUN npm install -g pnpm
+
+WORKDIR /workspace
+
+# Copy root package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.json tsconfig.base.json tsup.config.ts ./
+COPY src ./src
+
+# Install dependencies and build root package
+RUN pnpm install --frozen-lockfile && \
+  pnpm build
+
+# Stage 2: Install all dependencies (workspace-aware)
+FROM node:20-alpine AS deps
+
+RUN npm install -g pnpm
+
+WORKDIR /workspace
+
+# Copy workspace configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.json tsconfig.base.json ./
+
+# Copy root package source (needed for workspace resolution)
+COPY src ./src
+
+# Copy examples directory to preserve workspace structure
+COPY examples ./examples
+
+# Copy built root package from previous stage
+COPY --from=root-builder --chown=node:node /workspace/dist ./dist
+
+# Install all dependencies
+RUN pnpm install --frozen-lockfile --prod=false
+
+# Stage 3: Build NestJS application
+FROM node:20-alpine AS app-builder
+
+RUN npm install -g pnpm
+
+WORKDIR /workspace
+
+# Copy workspace configuration and dependencies
+COPY --from=deps --chown=node:node /workspace/package.json /workspace/pnpm-lock.yaml /workspace/pnpm-workspace.yaml ./
+COPY --from=deps --chown=node:node /workspace/dist ./dist
+COPY --from=deps --chown=node:node /workspace/node_modules ./node_modules
+
+# Copy NestJS app source
+COPY examples/nestjs ./examples/nestjs
+
+# Build NestJS app
+WORKDIR /workspace/examples/nestjs
+RUN pnpm build
+
+# Stage 4: Production runtime
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+# Copy workspace files for runtime dependency resolution
+COPY --from=app-builder --chown=node:node /workspace/package.json /workspace/pnpm-workspace.yaml /workspace/pnpm-lock.yaml ./
+
+# Copy built root package
+COPY --from=app-builder --chown=node:node /workspace/dist ./dist
+
+# Copy only production node_modules
+COPY --from=app-builder --chown=node:node /workspace/node_modules ./node_modules
+
+# Copy built NestJS application
+COPY --from=app-builder --chown=node:node /workspace/examples/nestjs/dist ./examples/nestjs/dist
+
+# Copy NestJS package.json for runtime
+COPY --from=app-builder --chown=node:node /workspace/examples/nestjs/package.json ./examples/nestjs/
+
+# Set working directory to NestJS app
+WORKDIR /app/examples/nestjs
+
+# Switch to non-root user
+RUN chown -R node:node /app
+USER node
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Start the application
+CMD ["node", "dist/main.js"]

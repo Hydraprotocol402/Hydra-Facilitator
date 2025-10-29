@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Testing
+coverage
+*.log
+*.test.ts
+*.spec.ts
+
+# Documentation
+*.md
+!README.md
+
+# Lock files (pnpm-lock.yaml is needed for reproducible builds)
+# pnpm-lock.yaml
+
+# Misc
+.DS_Store
+*.tmp
+*.bak
+*.cache
+
