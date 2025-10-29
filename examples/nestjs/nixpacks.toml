@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs_24', 'npm-9_x', 'openssl']
+nixPkgs = ['nodejs_20', 'npm-9_x', 'openssl']
 
 [phases.install]
 cmds = ['npm install -g pnpm', 'cd ../.. && pnpm install']
