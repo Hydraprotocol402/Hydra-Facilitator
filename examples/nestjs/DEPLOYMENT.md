@@ -1,16 +1,28 @@
 # Deployment Guide for NestJS Facilitator
 
-This NestJS app is part of a pnpm monorepo and depends on the root package. Here are two deployment options:
+This NestJS app is part of a pnpm monorepo and **requires** the repository root to be available during build because it depends on the root package (`"x402": "file:../.."`).
 
-## Option 1: Configure Coolify to Build from Repository Root (Recommended)
+## ⚠️ Required: Configure Coolify Build Context
 
-In Coolify's deployment settings:
+**You MUST configure Coolify to build from the repository root, not from `examples/nestjs`.**
 
-1. **Build Context**: Set to the repository root (`/`)
-2. **Dockerfile Path** (if using): Leave empty or use `examples/nestjs/nixpacks.toml`
-3. **Working Directory**: Set to `examples/nestjs` (or leave empty, nixpacks will handle it)
+### Steps to Fix in Coolify:
 
-This ensures the entire monorepo is available during the build process.
+1. Go to your deployment settings in Coolify
+2. Find **"Build Context"** or **"Root Directory"** setting
+3. **Set it to the repository root** (should be empty `/` or `.`)
+4. **DO NOT** set it to `examples/nestjs` - that will fail!
+
+Alternatively, if Coolify has a "Dockerfile/Config Path" setting:
+- Set **Build Context** to: `/` (repo root)
+- Set **Config Path** to: `examples/nestjs/nixpacks.toml` (if supported)
+
+### Why?
+
+The NestJS app depends on the root package via `file:../..`. Without access to the repository root:
+- Dependencies cannot be installed (`pnpm install` fails)
+- The root package cannot be built
+- The NestJS app cannot be built
 
 ## Option 2: Current Configuration (Build from examples/nestjs)
 
