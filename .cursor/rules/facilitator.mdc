@@ -1,0 +1,229 @@
+---
+alwaysApply: true
+description: x402 Facilitator Protocol Implementation Guide
+---
+
+# x402 Facilitator Protocol
+
+This rule defines the facilitator pattern implementation for the x402 payment protocol.
+
+## Facilitator Overview
+
+The facilitator is an optional but recommended service that simplifies payment verification and settlement between clients (buyers) and servers (sellers) in the x402 protocol.
+
+### Core Responsibilities
+
+1. **Verify payments**: Confirm that client payment payloads meet server payment requirements
+2. **Settle payments**: Submit validated payments to the blockchain and monitor for confirmation
+3. **Provide responses**: Return verification and settlement results to servers
+
+**Important**: The facilitator does not hold funds or act as a custodian. It performs verification and execution of onchain transactions based on signed payloads provided by clients.
+
+## Interaction Flow
+
+Follow this sequence when implementing facilitator endpoints:
+
+1. Client makes HTTP request to resource server
+2. Resource server responds with `402 Payment Required` and `Payment Required Response` JSON
+3. Client creates `Payment Payload` based on selected `paymentDetails`
+4. Client sends request with `X-PAYMENT` header containing the `Payment Payload`
+5. Resource server verifies via local verification OR POSTs to facilitator `/verify` endpoint
+6. Facilitator verifies based on `scheme` and `networkId`, returns `Verification Response`
+7. Resource server fulfills request if valid, otherwise returns `402 Payment Required`
+8. Resource server settles via blockchain OR POSTs to facilitator `/settle` endpoint
+9. Facilitator submits payment to blockchain based on `scheme` and `networkId`
+10. Facilitator waits for blockchain confirmation
+11. Facilitator returns `Payment Execution Response` to resource server
+12. Resource server returns `200 OK` with resource and `X-PAYMENT-RESPONSE` header (Base64 encoded settlement response)
+
+## Core Implementation
+
+The main facilitator functions are in [src/facilitator/facilitator.ts](mdc:src/facilitator/facilitator.ts):
+
+- `verify()`: Verifies payment payloads against payment requirements (supports all schemes)
+- `settle()`: Settles verified payments on blockchain (supports all schemes)
+
+### Verification Function
+
+```typescript
+verify(
+  client: ConnectedClient | Signer,
+  payload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+  config?: X402Config,
+): Promise<VerifyResponse>
+```
+
+- Uses `ConnectedClient` for EVM networks (read-only verification)
+- Uses `Signer` for SVM networks (transaction signing verification)
+- Returns `VerifyResponse` with `isValid`, `invalidReason`, and `payer` fields
+- Routes to scheme-specific verifiers based on `paymentRequirements.scheme` and `network`
+
+### Settlement Function
+
+```typescript
+settle(
+  client: Signer,
+  payload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+  config?: X402Config,
+): Promise<SettleResponse>
+```
+
+- Requires `Signer` wallet for blockchain submission
+- Re-verifies payment before settlement
+- Submits transaction and waits for confirmation
+- Returns `SettleResponse` with `success`, `transaction`, `network`, `payer`, and `errorReason`
+
+## Scheme Support
+
+Currently supports the **"exact"** scheme for:
+
+- **EVM Networks**: Uses [src/schemes/exact/evm/facilitator.ts](mdc:src/schemes/exact/evm/facilitator.ts)
+  - Implements `transferWithAuthorization` for USDC transfers
+  - Uses viem for EVM interactions
+  - Supports networks in `SupportedEVMNetworks`
+
+- **SVM Networks**: Uses [src/schemes/exact/svm/facilitator](mdc:src/schemes/exact/svm/facilitator)
+  - Implements SPL token transfers
+  - Uses @solana/web3.js and @solana/kit
+  - Supports networks in `SupportedSVMNetworks`
+
+## API Endpoints
+
+When implementing facilitator endpoints, follow the NestJS example in [examples/nestjs/src/facilitator](mdc:examples/nestjs/src/facilitator):
+
+### POST /verify
+
+**Request Body**:
+```typescript
+{
+  paymentPayload: PaymentPayload;
+  paymentRequirements: PaymentRequirements;
+}
+```
+
+**Response**: `VerifyResponse`
+```typescript
+{
+  isValid: boolean;
+  invalidReason?: string;
+  payer: string;
+}
+```
+
+- Validate input using `PaymentPayloadSchema` and `PaymentRequirementsSchema`
+- Create appropriate client based on network type
+- Call `verify()` from facilitator module
+- Handle errors gracefully with meaningful messages
+
+### POST /settle
+
+**Request Body**:
+```typescript
+{
+  paymentPayload: PaymentPayload;
+  paymentRequirements: PaymentRequirements;
+}
+```
+
+**Response**: `SettleResponse`
+```typescript
+{
+  success: boolean;
+  transaction?: string;  // Transaction hash/signature
+  network: string;
+  payer: string;
+  errorReason?: string;
+}
+```
+
+- Validate input using schemas
+- Create signer wallet based on network (requires private key)
+- Call `settle()` from facilitator module
+- Handle transaction submission and confirmation errors
+
+### GET /supported
+
+**Response**:
+```typescript
+{
+  kinds: SupportedPaymentKind[];
+}
+```
+
+- Returns supported schemes and networks
+- Only include networks for which signer private keys are available
+- For SVM, include `feePayer` in `extra` field if applicable
+
+## Network-Specific Implementation
+
+### EVM Networks
+
+- Use `createConnectedClient(network)` for verification (read-only)
+- Use `createSigner(network, privateKey)` for settlement
+- Private key required as hex string for settlement operations
+- Check network support via `SupportedEVMNetworks.includes(network)`
+
+### SVM Networks
+
+- Use `createSigner(network, privateKey)` for both verification and settlement
+- Private key required as base58 encoded string
+- Can configure custom RPC via `X402Config.svmConfig.rpcUrl`
+- Check network support via `SupportedSVMNetworks.includes(network)`
+- Fee payer address available via `isSvmSignerWallet()` check
+
+## Type Definitions
+
+Key types are defined in [src/types/verify](mdc:src/types/verify):
+
+- `PaymentPayload`: Contains payment details, scheme, network, and signed payload
+- `PaymentRequirements`: Server's payment requirements (amount, asset, recipient, etc.)
+- `VerifyResponse`: Verification result with validity status
+- `SettleResponse`: Settlement result with transaction details
+- `FacilitatorRequest`: Request format for facilitator endpoints
+
+## Configuration
+
+Use `X402Config` for optional configuration:
+
+- Custom RPC URLs via `svmConfig.rpcUrl`
+- Additional scheme-specific configurations as needed
+
+## Error Handling
+
+When implementing facilitator endpoints:
+
+- Always validate input using Zod schemas (`PaymentPayloadSchema`, `PaymentRequirementsSchema`)
+- Handle network-specific errors (missing private keys, invalid networks)
+- Re-verify payments before settlement
+- Return structured error responses that match `VerifyResponse` or `SettleResponse` formats
+- Use `invalidReason` and `errorReason` fields for detailed error information
+
+## Example Implementation
+
+See [examples/nestjs/src/facilitator](mdc:examples/nestjs/src/facilitator) for a complete NestJS implementation:
+
+- [facilitator.controller.ts](mdc:examples/nestjs/src/facilitator/facilitator.controller.ts): HTTP endpoint definitions
+- [facilitator.service.ts](mdc:examples/nestjs/src/facilitator/facilitator.service.ts): Business logic for verification and settlement
+- [facilitator.module.ts](mdc:examples/nestjs/src/facilitator/facilitator.module.ts): Module setup
+
+## Best Practices
+
+1. **Always re-verify before settlement**: Settlement functions should verify the payment payload again to ensure validity hasn't changed
+2. **Network-specific client creation**: Use appropriate client types (`ConnectedClient` for EVM verification, `Signer` for settlement)
+3. **Error context**: Include enough error information in responses for debugging without exposing sensitive data
+4. **Private key security**: Never expose private keys in logs or error messages
+5. **Transaction confirmation**: Wait for blockchain confirmation before returning settlement success
+6. **Schema validation**: Always validate inputs using provided Zod schemas before processing
+7. **Supported endpoint**: Dynamically return only networks for which signers are configured
+
+## Adding New Schemes
+
+When adding new payment schemes:
+
+1. Create scheme-specific verification in `src/schemes/{scheme-name}/`
+2. Create scheme-specific settlement function
+3. Update main `verify()` and `settle()` functions in [src/facilitator/facilitator.ts](mdc:src/facilitator/facilitator.ts) to route to new scheme
+4. Update type definitions in [src/types/verify](mdc:src/types/verify) if needed
+5. Add network support constants if using new blockchain networks
