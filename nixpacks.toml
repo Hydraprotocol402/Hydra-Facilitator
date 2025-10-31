@@ -4,9 +4,8 @@ nixPkgs = ['nodejs_22', 'pnpm', 'openssl']
 [phases.install]
 cmds = ['pnpm install --frozen-lockfile']
 
-[build]
-# NestJS prebuild already builds the parent package, so we just need to build NestJS
-command = "cd examples/nestjs && pnpm run build"
+[phases.build]
+cmds = ['cd examples/nestjs && pnpm run build']
 
 [start]
 cmd = "cd examples/nestjs && pnpm run start:prod"
