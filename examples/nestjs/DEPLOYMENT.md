@@ -60,6 +60,9 @@ Set these in Coolify's environment variables (or via `.env` file):
 - `RATE_LIMIT_SETTLE` (default: 50) - Max requests per window for /settle
 - `RATE_LIMIT_SUPPORTED` (default: 200) - Max requests per window for /supported
 
+Additional optional controls:
+- `ALLOWED_NETWORKS` - Comma-separated allowlist of networks for verify/settle and /supported. Example: `base-sepolia,solana-devnet`. If unset/empty, all supported networks for which private keys are configured are allowed by default.
+
 See `.env.example` for all available configuration options.
 
 ## Verification

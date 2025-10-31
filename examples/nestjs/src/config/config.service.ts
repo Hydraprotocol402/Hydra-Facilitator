@@ -18,6 +18,10 @@ export class ConfigService {
     return this.nestConfigService.get<string>("SVM_RPC_URL");
   }
 
+  get evmRpcUrl(): string | undefined {
+    return this.nestConfigService.get<string>("EVM_RPC_URL");
+  }
+
   get port(): number {
     return this.nestConfigService.get<number>("PORT", 3000);
   }
@@ -50,6 +54,22 @@ export class ConfigService {
     return this.nestConfigService.get<number>("RATE_LIMIT_SUPPORTED", 200);
   }
 
+  get allowedNetworks(): Set<string> | undefined {
+    const raw = this.nestConfigService.get<string>("ALLOWED_NETWORKS");
+    if (!raw) return undefined;
+    return new Set(
+      raw
+        .split(",")
+        .map((n) => n.trim())
+        .filter((n) => n.length > 0),
+    );
+  }
+
+  isNetworkAllowed(network: string): boolean {
+    const list = this.allowedNetworks;
+    return !list || list.has(network);
+  }
+
   validate(): void {
     if (!this.evmPrivateKey && !this.svmPrivateKey) {
       throw new Error(
@@ -59,13 +79,16 @@ export class ConfigService {
   }
 
   get x402Config(): X402Config | undefined {
-    if (this.svmRpcUrl) {
-      return {
-        svmConfig: {
-          rpcUrl: this.svmRpcUrl,
-        },
-      };
+    const config: X402Config = {};
+
+    if (this.evmRpcUrl) {
+      config.evmConfig = { rpcUrl: this.evmRpcUrl };
     }
-    return undefined;
+
+    if (this.svmRpcUrl) {
+      config.svmConfig = { rpcUrl: this.svmRpcUrl };
+    }
+
+    return Object.keys(config).length > 0 ? config : undefined;
   }
 }

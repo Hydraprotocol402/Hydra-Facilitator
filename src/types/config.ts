@@ -10,10 +10,22 @@ export interface SvmConfig {
 }
 
 /**
+ * Configuration options for EVM RPC connections.
+ */
+export interface EvmConfig {
+  /**
+   * Custom RPC URL for EVM connections.
+   * If not provided, defaults to the RPC URL from the chain definition.
+   */
+  rpcUrl?: string;
+}
+
+/**
  * Configuration options for X402 client and facilitator operations.
  */
 export interface X402Config {
+  /** Configuration for EVM operations */
+  evmConfig?: EvmConfig;
   /** Configuration for Solana (SVM) operations */
   svmConfig?: SvmConfig;
-  // Future: evmConfig?: EvmConfig for EVM-specific configurations
 }

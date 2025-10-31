@@ -2,6 +2,7 @@ import * as evm from "./evm/wallet";
 import * as svm from "../../shared/svm/wallet";
 import { SupportedEVMNetworks, SupportedSVMNetworks } from "./network";
 import { Hex } from "viem";
+import { X402Config } from "../config";
 
 export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient;
 export type Signer = evm.EvmSigner | svm.SvmSigner;
@@ -11,11 +12,13 @@ export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner };
  * Creates a public client configured for the specified network.
  *
  * @param network - The network to connect to.
+ * @param config - Optional X402 configuration containing custom RPC URLs.
  * @returns A public client instance connected to the specified chain.
  */
-export function createConnectedClient(network: string): ConnectedClient {
+export function createConnectedClient(network: string, config?: X402Config): ConnectedClient {
   if (SupportedEVMNetworks.find(n => n === network)) {
-    return evm.createConnectedClient(network);
+    const rpcUrl = config?.evmConfig?.rpcUrl;
+    return evm.createConnectedClient(network, rpcUrl);
   }
 
   if (SupportedSVMNetworks.find(n => n === network)) {
@@ -30,15 +33,19 @@ export function createConnectedClient(network: string): ConnectedClient {
  *
  * @param network - The network to connect to.
  * @param privateKey - The private key to use for signing transactions. This should be a hex string for EVM or a base58 encoded string for SVM.
+ * @param config - Optional X402 configuration containing custom RPC URLs.
  * @returns A wallet client instance connected to the specified chain with the provided private key.
  */
-export function createSigner(network: string, privateKey: Hex | string): Promise<Signer> {
-  // evm
+export function createSigner(
+  network: string,
+  privateKey: Hex | string,
+  config?: X402Config,
+): Promise<Signer> {
   if (SupportedEVMNetworks.find(n => n === network)) {
-    return Promise.resolve(evm.createSigner(network, privateKey as Hex));
+    const rpcUrl = config?.evmConfig?.rpcUrl;
+    return Promise.resolve(evm.createSigner(network, privateKey as Hex, rpcUrl));
   }
 
-  // svm
   if (SupportedSVMNetworks.find(n => n === network)) {
     return svm.createSignerFromBase58(privateKey as string);
   }

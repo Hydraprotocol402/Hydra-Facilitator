@@ -60,7 +60,7 @@ async function bootstrap() {
   const port = configService.port;
   await app.listen(port);
 
-  logger.log(`X402 Facilitator Server listening at http://0.0.0.0:${port}`);
+  logger.log(`X402 Facilitator Server listening at ${port}`);
   logger.log(`Endpoints:`);
   logger.log(`  POST /verify - Verify x402 payments`);
   logger.log(`  POST /settle - Settle x402 payments`);

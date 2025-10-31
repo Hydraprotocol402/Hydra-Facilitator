@@ -32,8 +32,14 @@ export class FacilitatorService {
   ): Promise<VerifyResponse> {
     let client: Signer | ConnectedClient;
     try {
+      if (!this.configService.isNetworkAllowed(paymentRequirements.network)) {
+        throw new BadRequestException(
+          `Network not allowed: ${paymentRequirements.network}`,
+        );
+      }
       if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-        client = createConnectedClient(paymentRequirements.network);
+        const x402Config = this.configService.x402Config;
+        client = createConnectedClient(paymentRequirements.network, x402Config);
       } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
         const privateKey = this.configService.svmPrivateKey;
         if (!privateKey) {
@@ -74,6 +80,11 @@ export class FacilitatorService {
   ): Promise<SettleResponse> {
     let signer: Signer;
     try {
+      if (!this.configService.isNetworkAllowed(paymentRequirements.network)) {
+        throw new BadRequestException(
+          `Network not allowed: ${paymentRequirements.network}`,
+        );
+      }
       if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
         const privateKey = this.configService.evmPrivateKey;
         if (!privateKey) {
@@ -81,7 +92,12 @@ export class FacilitatorService {
             "EVM_PRIVATE_KEY is required for EVM network settlement",
           );
         }
-        signer = await createSigner(paymentRequirements.network, privateKey);
+        const x402Config = this.configService.x402Config;
+        signer = await createSigner(
+          paymentRequirements.network,
+          privateKey,
+          x402Config,
+        );
       } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
         const privateKey = this.configService.svmPrivateKey;
         if (!privateKey) {

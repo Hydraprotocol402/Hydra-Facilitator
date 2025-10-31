@@ -54,16 +54,18 @@ export type EvmSigner = SignerWallet<Chain, Transport, Account> | LocalAccount;
  * Creates a public client configured for the specified network
  *
  * @param network - The network to connect to
+ * @param rpcUrl - Optional RPC URL to use for the client. If not provided, the default RPC URL will be used.
  * @returns A public client instance connected to the specified chain
  */
 export function createConnectedClient(
   network: string,
+  rpcUrl?: string,
 ): ConnectedClient<Transport, Chain, undefined> {
   const chain = getChainFromNetwork(network);
 
   return createPublicClient({
     chain,
-    transport: http(),
+    transport: rpcUrl ? http(rpcUrl) : http(),
   }).extend(publicActions);
 }
 
@@ -73,8 +75,10 @@ export function createConnectedClient(
  * @deprecated Use `createConnectedClient("base-sepolia")` instead
  * @returns A public client instance connected to Base Sepolia
  */
-export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
-  return createConnectedClient("base-sepolia") as ConnectedClient<
+export function createClientSepolia(
+  rpcUrl?: string,
+): ConnectedClient<Transport, typeof baseSepolia, undefined> {
+  return createConnectedClient("base-sepolia", rpcUrl) as ConnectedClient<
     Transport,
     typeof baseSepolia,
     undefined
@@ -87,12 +91,10 @@ export function createClientSepolia(): ConnectedClient<Transport, typeof baseSep
  * @deprecated Use `createConnectedClient("avalanche-fuji")` instead
  * @returns A public client instance connected to Avalanche Fuji
  */
-export function createClientAvalancheFuji(): ConnectedClient<
-  Transport,
-  typeof avalancheFuji,
-  undefined
-> {
-  return createConnectedClient("avalanche-fuji") as ConnectedClient<
+export function createClientAvalancheFuji(
+  rpcUrl?: string,
+): ConnectedClient<Transport, typeof avalancheFuji, undefined> {
+  return createConnectedClient("avalanche-fuji", rpcUrl) as ConnectedClient<
     Transport,
     typeof avalancheFuji,
     undefined
@@ -106,12 +108,16 @@ export function createClientAvalancheFuji(): ConnectedClient<
  * @param privateKey - The private key to use for signing transactions
  * @returns A wallet client instance connected to the specified chain with the provided private key
  */
-export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
+export function createSigner(
+  network: string,
+  privateKey: Hex,
+  rpcUrl?: string,
+): SignerWallet<Chain> {
   const chain = getChainFromNetwork(network);
 
   const walletClient = createWalletClient({
     chain,
-    transport: http(),
+    transport: rpcUrl ? http(rpcUrl) : http(),
     account: privateKeyToAccount(privateKey),
   });
 
@@ -129,8 +135,11 @@ export function createSigner(network: string, privateKey: Hex): SignerWallet<Cha
  * @param privateKey - The private key to use for signing transactions
  * @returns A wallet client instance connected to Base Sepolia with the provided private key
  */
-export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSepolia> {
-  return createSigner("base-sepolia", privateKey) as SignerWallet<typeof baseSepolia>;
+export function createSignerSepolia(
+  privateKey: Hex,
+  rpcUrl?: string,
+): SignerWallet<typeof baseSepolia> {
+  return createSigner("base-sepolia", privateKey, rpcUrl) as SignerWallet<typeof baseSepolia>;
 }
 
 /**
@@ -140,8 +149,11 @@ export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSe
  * @param privateKey - The private key to use for signing transactions
  * @returns A wallet client instance connected to Avalanche Fuji with the provided private key
  */
-export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof avalancheFuji> {
-  return createSigner("avalanche-fuji", privateKey) as SignerWallet<typeof avalancheFuji>;
+export function createSignerAvalancheFuji(
+  privateKey: Hex,
+  rpcUrl?: string,
+): SignerWallet<typeof avalancheFuji> {
+  return createSigner("avalanche-fuji", privateKey, rpcUrl) as SignerWallet<typeof avalancheFuji>;
 }
 
 /**
