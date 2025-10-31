@@ -6,6 +6,21 @@
   "types": "./dist/cjs/index.d.ts",
   "typesVersions": {
     "*": {
+      "types": [
+        "./dist/cjs/types/index.d.ts"
+      ],
+      "facilitator": [
+        "./dist/cjs/facilitator/index.d.ts"
+      ],
+      "schemes": [
+        "./dist/cjs/schemes/index.d.ts"
+      ],
+      "shared": [
+        "./dist/cjs/shared/index.d.ts"
+      ],
+      "shared/evm": [
+        "./dist/cjs/shared/evm/index.d.ts"
+      ],
       "*": [
         "./dist/cjs/*",
         "./dist/cjs/*/index",
