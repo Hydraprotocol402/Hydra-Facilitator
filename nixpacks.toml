@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ['nodejs_22', 'pnpm', 'openssl']
+
+[phases.install]
+cmds = ['pnpm install']
+
+[build]
+# Build parent package, then NestJS app
+command = "pnpm run build && cd examples/nestjs && pnpm run build"
+
+[start]
+command = "cd examples/nestjs && node dist/main"
