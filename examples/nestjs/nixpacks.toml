@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ['nodejs_22', 'pnpm', 'openssl']
+
+[phases.install]
+cmds = ['pnpm install --frozen-lockfile']
+
+[build]
+# Build parent package first, then NestJS app
+command = "pnpm run prebuild && pnpm run build"
+
+[start]
+command = "pnpm run start"
