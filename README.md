@@ -178,6 +178,29 @@ A complete NestJS server implementation is provided in [`examples/nestjs/`](./ex
 
 See the [NestJS example README](./examples/nestjs/README.md) for detailed setup instructions.
 
+#### Development Workflow
+
+The NestJS example uses the published npm package by default. For local development:
+
+```bash
+# Set up local development (links the built package)
+npm run dev:setup
+
+# Tear down local development (uses published package)
+npm run dev:teardown
+```
+
+Alternatively, you can manually link:
+
+```bash
+# In the main package directory
+npm run build  # This automatically creates npm link
+
+# In the NestJS example directory
+npm run dev:link   # Links to local package
+npm run dev:unlink # Uses published package
+```
+
 ### Basic Express Server
 
 ```typescript

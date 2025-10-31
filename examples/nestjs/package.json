@@ -6,8 +6,9 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "prebuild": "cd ../.. && pnpm build",
     "build": "nest build",
+    "dev:link": "npm link ../.. && npm run build",
+    "dev:unlink": "npm unlink x402-hydra-facilitator && npm install",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -35,7 +36,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "uuid": "^13.0.0",
-    "x402-hydra-facilitator": "file:../.."
+    "x402-hydra-facilitator": "^0.7.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

@@ -30,6 +30,9 @@
   },
   "scripts": {
     "build": "tsup",
+    "postbuild": "npm link",
+    "dev:setup": "npm run build && cd examples/nestjs && npm run dev:link",
+    "dev:teardown": "cd examples/nestjs && npm run dev:unlink",
     "test": "vitest run",
     "test:watch": "vitest",
     "watch": "tsc --watch",
