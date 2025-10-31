@@ -5,7 +5,7 @@ nixPkgs = ['nodejs_22', 'pnpm', 'openssl']
 cmds = ['pnpm install --frozen-lockfile']
 
 [phases.build]
-cmds = ['cd examples/nestjs && pnpm run build']
+cmds = ['pnpm run build', 'cd examples/nestjs && pnpm run build']
 
 [start]
 cmd = "cd examples/nestjs && pnpm run start:prod"
