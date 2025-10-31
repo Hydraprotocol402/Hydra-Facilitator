@@ -9,4 +9,4 @@ cmds = ['pnpm install --frozen-lockfile']
 command = "pnpm run prebuild && pnpm run build"
 
 [start]
-command = "pnpm run start"
+command = "node dist/main"
