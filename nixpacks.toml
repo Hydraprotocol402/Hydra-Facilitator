@@ -9,4 +9,4 @@ cmds = ['pnpm install --frozen-lockfile']
 command = "cd examples/nestjs && pnpm run build"
 
 [start]
-cmd = "cd examples/nestjs && node dist/main"
+cmd = "cd examples/nestjs && pnpm run start:prod"
