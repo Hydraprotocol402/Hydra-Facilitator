@@ -27,14 +27,14 @@
     "noImplicitReturns": false,
     "noUncheckedIndexedAccess": false,
     "paths": {
-      "x402-hydra-facilitator/types": ["../../dist/cjs/types/index.d.ts"],
+      "x402-hydra-facilitator/types": ["../../dist/cjs/types/index.js"],
       "x402-hydra-facilitator/facilitator": [
-        "../../dist/cjs/facilitator/index.d.ts"
+        "../../dist/cjs/facilitator/index.js"
       ],
-      "x402-hydra-facilitator/schemes": ["../../dist/cjs/schemes/index.d.ts"],
-      "x402-hydra-facilitator/shared": ["../../dist/cjs/shared/index.d.ts"],
+      "x402-hydra-facilitator/schemes": ["../../dist/cjs/schemes/index.js"],
+      "x402-hydra-facilitator/shared": ["../../dist/cjs/shared/index.js"],
       "x402-hydra-facilitator/shared/evm": [
-        "../../dist/cjs/shared/evm/index.d.ts"
+        "../../dist/cjs/shared/evm/index.js"
       ],
       "*": ["node_modules/*"]
     }
