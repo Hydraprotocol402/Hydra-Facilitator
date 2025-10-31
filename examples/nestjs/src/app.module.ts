@@ -4,7 +4,15 @@ import { FacilitatorModule } from "./facilitator/facilitator.module";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from "@nestjs/core";
 import { ConfigService } from "./config/config.service";
-import { RequestIdInterceptor } from "./common/interceptors/request-id.interceptor";
+import {
+  RequestIdInterceptor,
+  LoggingInterceptor,
+  MetricsInterceptor,
+  TracingInterceptor,
+  PerformanceInterceptor,
+} from "./common";
+import { MetricsModule } from "./common/metrics/metrics.module";
+import { TracingModule } from "./common/tracing/tracing.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ThrottlerBehindProxyGuard } from "./common/guards/throttler-behind-proxy.guard";
 import { TerminusModule } from "@nestjs/terminus";
@@ -31,17 +39,36 @@ import { LoggerModule } from "nestjs-pino";
             id: req.id,
             method: req.method,
             url: req.url,
+            route: req.route?.path,
+            ip: req.ip,
+            userAgent: req.headers["user-agent"],
           }),
           res: (res) => ({
             statusCode: res.statusCode,
+          }),
+          err: (err) => ({
+            type: err.type,
+            message: err.message,
+            stack:
+              process.env.NODE_ENV !== "production" ? err.stack : undefined,
           }),
         },
         customProps: () => ({
           context: "HTTP",
         }),
+        // Add request ID to all logs
+        genReqId: (req) => {
+          return (
+            req.headers["x-request-id"] ||
+            req.id ||
+            `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          );
+        },
       },
     }),
     ConfigModule,
+    MetricsModule, // Prometheus metrics
+    TracingModule, // OpenTelemetry tracing
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -65,9 +92,27 @@ import { LoggerModule } from "nestjs-pino";
       provide: APP_GUARD,
       useClass: ThrottlerBehindProxyGuard,
     },
+    // Interceptors are executed in reverse order of registration
+    // So RequestIdInterceptor runs first, then Tracing, then Metrics, then Performance, then Logging
     {
       provide: APP_INTERCEPTOR,
       useClass: RequestIdInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TracingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MetricsInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PerformanceInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
     {
       provide: APP_FILTER,
