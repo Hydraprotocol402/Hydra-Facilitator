@@ -310,7 +310,7 @@ Monitor these metrics:
 ## Notes
 
 - The server validates that at least one private key (EVM or SVM) is configured on startup
-- Payment payloads and requirements are validated using Zod schemas from the x402 package
+- Payment payloads and requirements are validated using Zod schemas from the x402-hydra-facilitator package
 - The `/supported` endpoint dynamically returns supported networks based on available private keys
 - SVM verification requires a signer (not just a connected client) because it signs and simulates transactions
 - Error responses preserve x402 protocol structure for `/verify` and `/settle` endpoints

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService as NestConfigService } from "@nestjs/config";
-import { X402Config } from "x402/dist/cjs/types";
+import { X402Config } from "x402-hydra-facilitator/types";
 
 @Injectable()
 export class ConfigService {

@@ -11,7 +11,10 @@ import { Throttle } from "@nestjs/throttler";
 import { FacilitatorService } from "./facilitator.service";
 import { VerifyRequestDto } from "./dto/verify.dto";
 import { SettleRequestDto } from "./dto/settle.dto";
-import { PaymentPayloadSchema, PaymentRequirementsSchema } from "x402/types";
+import {
+  PaymentPayloadSchema,
+  PaymentRequirementsSchema,
+} from "x402-hydra-facilitator/types";
 import { PinoLogger } from "nestjs-pino";
 
 @Controller()

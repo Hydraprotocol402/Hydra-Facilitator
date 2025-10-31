@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
-import { verify, settle } from "x402/facilitator";
+import { verify, settle } from "x402-hydra-facilitator/facilitator";
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -13,7 +13,7 @@ import {
   SupportedPaymentKind,
   Signer,
   ConnectedClient,
-} from "x402/types";
+} from "x402-hydra-facilitator/types";
 import { ConfigService } from "../config/config.service";
 import { PinoLogger } from "nestjs-pino";
 

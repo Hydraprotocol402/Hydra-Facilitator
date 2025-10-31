@@ -1,0 +1,59 @@
+# Source files
+src/
+examples/
+*.ts
+!dist/**/*.d.ts
+
+# Development files
+node_modules/
+*.config.js
+*.config.ts
+tsconfig*.json
+vitest.config.ts
+eslint.config.js
+.prettierrc
+.prettierignore
+
+# Build artifacts (keep dist/)
+*.tsbuildinfo
+
+# Test files
+*.test.ts
+*.spec.ts
+coverage/
+
+# Documentation (keep README.md)
+*.md
+!README.md
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Lock files (let users choose their package manager)
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Workspace config
+pnpm-workspace.yaml

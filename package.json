@@ -23,8 +23,28 @@
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts"
   },
-  "keywords": [],
-  "description": "x402 Hydra Facilitator Protocol Implementation",
+  "keywords": [
+    "x402",
+    "hydra",
+    "facilitator",
+    "payment",
+    "blockchain",
+    "evm",
+    "solana",
+    "web3",
+    "payment-protocol"
+  ],
+  "description": "x402 Hydra Facilitator Protocol Implementation - Payment verification and settlement for EVM and SVM networks",
+  "author": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hydraprotocol402/Hydra-Facilitator"
+  },
+  "bugs": {
+    "url": "https://github.com/Hydraprotocol402/Hydra-Facilitator/issues"
+  },
+  "homepage": "https://github.com/Hydraprotocol402/Hydra-Facilitator",
   "devDependencies": {
     "@eslint/js": "^9.24.0",
     "@types/node": "^22.13.4",
