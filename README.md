@@ -2,6 +2,10 @@
 
 A TypeScript library implementing the [x402 Payment Protocol](https://github.com/Hydraprotocol402/Hydra-Facilitator) facilitator pattern. This library provides payment verification and settlement functionality for both EVM and SVM (Solana Virtual Machine) networks.
 
+**Version:** 0.7.0
+**License:** Apache-2.0
+**Repository:** [Hydraprotocol402/Hydra-Facilitator](https://github.com/Hydraprotocol402/Hydra-Facilitator)
+
 ## Overview
 
 The facilitator is an optional but recommended service that simplifies payment verification and settlement between clients (buyers) and servers (sellers) in the x402 protocol. Unlike traditional payment processors, the facilitator **does not hold funds or act as a custodian**. It performs verification and execution of onchain transactions based on signed payloads provided by clients.
@@ -146,10 +150,17 @@ import { createSigner } from "x402-hydra-facilitator/shared";
 // Private key must be base58 encoded string
 const signer = createSigner("solana-devnet", "base58...");
 
-// Optional: Custom RPC URL
+// Optional: Custom RPC URL for SVM
 const config = {
   svmConfig: {
     rpcUrl: "https://custom-rpc.example.com"
+  }
+};
+
+// Optional: Custom RPC URL for EVM (if using EVM networks)
+const evmConfig = {
+  evmConfig: {
+    rpcUrl: "https://custom-evm-rpc.example.com"
   }
 };
 ```
@@ -212,6 +223,9 @@ Optional configuration for customizing behavior:
 
 ```typescript
 interface X402Config {
+  evmConfig?: {
+    rpcUrl?: string;  // Custom EVM RPC URL
+  };
   svmConfig?: {
     rpcUrl?: string;  // Custom Solana RPC URL
   };
@@ -224,6 +238,7 @@ When running a facilitator service:
 
 - `EVM_PRIVATE_KEY` - Private key for EVM networks (hex string)
 - `SVM_PRIVATE_KEY` - Private key for Solana networks (base58 encoded)
+- `EVM_RPC_URL` - Custom EVM RPC URL (optional)
 - `SVM_RPC_URL` - Custom Solana RPC URL (optional)
 
 ## Payment Schemes
@@ -306,11 +321,11 @@ The package exports multiple entry points:
 
 ## License
 
-[License information to be added]
+Licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-[Contributing guidelines to be added]
+Contributions are welcome! Please see the repository for contribution guidelines.
 
 ## Related Projects
 

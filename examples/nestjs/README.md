@@ -31,20 +31,19 @@ This server implements the x402 facilitator interface with three main endpoints:
    ```
 
 2. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
 
-   Edit `.env` and set at least one of:
+   Create a `.env` file (or copy from `.env.example` if provided) and set at least one of:
    - `EVM_PRIVATE_KEY` - Private key for EVM network operations (hex string)
    - `SVM_PRIVATE_KEY` - Private key for Solana network operations (base58 encoded string)
 
    Optional configuration:
+   - `EVM_RPC_URL` - Custom EVM RPC URL
    - `SVM_RPC_URL` - Custom Solana RPC URL
    - `PORT` - Server port (default: 3000)
    - `NODE_ENV` - Environment (development/production)
    - `CORS_ORIGINS` - Comma-separated list of allowed CORS origins (default: allow all)
    - `ENABLE_CORS` - Enable/disable CORS (default: true)
+   - `ALLOWED_NETWORKS` - Comma-separated list of allowed networks (default: all supported networks)
    - `RATE_LIMIT_TTL` - Rate limit window in seconds (default: 60)
    - `RATE_LIMIT_VERIFY` - Max requests per window for /verify (default: 100)
    - `RATE_LIMIT_SETTLE` - Max requests per window for /settle (default: 50)
@@ -221,7 +220,7 @@ The server uses Helmet to set security headers:
 
 ### Request Timeouts
 
-Default request timeout is 30 seconds. Configure via `REQUEST_TIMEOUT` environment variable.
+The NestJS platform sets a default request timeout. For custom timeout behavior, configure it at the NestJS application level or via a reverse proxy.
 
 ## Observability
 
@@ -284,6 +283,8 @@ Ensure all required environment variables are set:
 - `NODE_ENV=production`
 - `CORS_ORIGINS` with your allowed origins
 - Consider setting `RATE_LIMIT_*` based on expected load
+- Optionally set `ALLOWED_NETWORKS` to restrict which networks are supported
+- Optionally set `EVM_RPC_URL` or `SVM_RPC_URL` for custom RPC endpoints
 
 ### Behind a Reverse Proxy
 
