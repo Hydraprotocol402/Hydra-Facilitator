@@ -40,10 +40,18 @@ export class TracingService implements OnModuleDestroy {
         return;
       }
 
+      // Enhanced resource attributes for better observability
+      const environment =
+        process.env.NODE_ENV === "production" ? "production" : "development";
+      const deploymentEnv =
+        process.env.DEPLOYMENT_ENV || process.env.ENVIRONMENT || environment;
+
       this.sdk = new NodeSDK({
         resource: resourceFromAttributes({
           [ATTR_SERVICE_NAME]: serviceName,
           [ATTR_SERVICE_VERSION]: serviceVersion,
+          "deployment.environment": deploymentEnv,
+          "service.namespace": process.env.OTEL_SERVICE_NAMESPACE || "default",
         }),
         traceExporter: new OTLPTraceExporter({
           url: `${otlpEndpoint}/v1/traces`,
