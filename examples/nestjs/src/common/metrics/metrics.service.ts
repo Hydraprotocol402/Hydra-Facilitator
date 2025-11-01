@@ -9,6 +9,12 @@ export class MetricsService {
   private readonly activeConnections: Gauge<string>;
   private readonly errorCounter: Counter<string>;
   private readonly businessMetrics: Map<string, Counter<string>>;
+  private readonly paymentVerificationCounter: Counter<string>;
+  private readonly paymentSettlementCounter: Counter<string>;
+  private readonly paymentAmountHistogram: Histogram<string>;
+  private readonly paymentVerificationDuration: Histogram<string>;
+  private readonly paymentSettlementDuration: Histogram<string>;
+  private readonly paymentConfirmationWaitDuration: Histogram<string>;
 
   constructor() {
     // HTTP request metrics
@@ -52,6 +58,61 @@ export class MetricsService {
 
     // Business metrics map
     this.businessMetrics = new Map();
+
+    // Payment verification metrics
+    this.paymentVerificationCounter = new Counter({
+      name: "payment_verification_total",
+      help: "Total number of payment verifications",
+      labelNames: ["network", "scheme", "result", "reason"],
+      registers: [register],
+    });
+
+    // Payment settlement metrics
+    this.paymentSettlementCounter = new Counter({
+      name: "payment_settlement_total",
+      help: "Total number of payment settlements",
+      labelNames: ["network", "scheme", "result", "reason"],
+      registers: [register],
+    });
+
+    // Payment amount histogram
+    this.paymentAmountHistogram = new Histogram({
+      name: "payment_amount_total",
+      help: "Payment amounts in atomic units",
+      labelNames: ["network", "scheme"],
+      buckets: [
+        1000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000,
+        50000000, 100000000,
+      ],
+      registers: [register],
+    });
+
+    // Payment verification duration
+    this.paymentVerificationDuration = new Histogram({
+      name: "payment_verification_duration_seconds",
+      help: "Duration of payment verification in seconds",
+      labelNames: ["network", "scheme"],
+      buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10],
+      registers: [register],
+    });
+
+    // Payment settlement duration
+    this.paymentSettlementDuration = new Histogram({
+      name: "payment_settlement_duration_seconds",
+      help: "Duration of payment settlement in seconds",
+      labelNames: ["network", "scheme"],
+      buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120],
+      registers: [register],
+    });
+
+    // Transaction confirmation wait time
+    this.paymentConfirmationWaitDuration = new Histogram({
+      name: "payment_confirmation_wait_seconds",
+      help: "Time waiting for blockchain confirmation in seconds",
+      labelNames: ["network", "scheme"],
+      buckets: [1, 2, 5, 10, 30, 60, 120, 300],
+      registers: [register],
+    });
   }
 
   recordHttpRequest(
@@ -134,6 +195,58 @@ export class MetricsService {
 
     const counter = this.businessMetrics.get(key)!;
     counter.inc(labels, value);
+  }
+
+  recordPaymentVerification(
+    network: string,
+    scheme: string,
+    result: "success" | "failure",
+    reason: string,
+    durationSeconds: number,
+  ): void {
+    this.paymentVerificationCounter.inc({
+      network,
+      scheme,
+      result,
+      reason: reason || "none",
+    });
+
+    this.paymentVerificationDuration.observe(
+      { network, scheme },
+      durationSeconds,
+    );
+  }
+
+  recordPaymentSettlement(
+    network: string,
+    scheme: string,
+    result: "success" | "failure",
+    reason: string,
+    durationSeconds: number,
+    confirmationWaitSeconds?: number,
+  ): void {
+    this.paymentSettlementCounter.inc({
+      network,
+      scheme,
+      result,
+      reason: reason || "none",
+    });
+
+    this.paymentSettlementDuration.observe(
+      { network, scheme },
+      durationSeconds,
+    );
+
+    if (confirmationWaitSeconds !== undefined) {
+      this.paymentConfirmationWaitDuration.observe(
+        { network, scheme },
+        confirmationWaitSeconds,
+      );
+    }
+  }
+
+  recordPaymentAmount(network: string, scheme: string, amount: number): void {
+    this.paymentAmountHistogram.observe({ network, scheme }, amount);
   }
 
   private normalizeRoute(route: string): string {
