@@ -18,6 +18,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = "Internal server error";
     let errorReason: string | undefined;
+    let payer: string | undefined;
+
+    // Try to extract payer from request body for x402 endpoints
+    const isX402Endpoint =
+      request.url.includes("/verify") || request.url.includes("/settle");
+    if (isX402Endpoint && request.body) {
+      try {
+        const body = request.body;
+        if (body.paymentPayload?.payload?.authorization?.from) {
+          payer = body.paymentPayload.payload.authorization.from;
+        }
+      } catch {
+        // Ignore extraction errors
+      }
+    }
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -45,10 +60,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       // Log full error but don't expose it to client
     }
 
-    // For x402 endpoints, preserve the response structure
-    const isX402Endpoint =
-      request.url.includes("/verify") || request.url.includes("/settle");
-
     const errorResponse: any = {
       statusCode: status,
       timestamp: new Date().toISOString(),
@@ -61,13 +72,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (request.url.includes("/verify")) {
         errorResponse.isValid = false;
         errorResponse.invalidReason = errorReason || "unexpected_verify_error";
-        errorResponse.payer = ""; // Try to extract from body if possible
+        errorResponse.payer = payer || "";
       } else if (request.url.includes("/settle")) {
         errorResponse.success = false;
         errorResponse.errorReason = errorReason || "unexpected_settle_error";
         errorResponse.transaction = "";
         errorResponse.network = "";
-        errorResponse.payer = "";
+        errorResponse.payer = payer || "";
       }
     } else {
       errorResponse.message = message;

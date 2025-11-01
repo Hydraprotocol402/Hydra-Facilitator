@@ -22,12 +22,17 @@ export class HealthController {
   }
 
   @Get("ready")
+  @HealthCheck()
   ready() {
-    return { status: "ready", timestamp: new Date().toISOString() };
+    // Readiness check - verify service is ready to handle requests
+    return this.health.check([
+      () => this.memory.checkHeap("memory_heap", 500 * 1024 * 1024),
+    ]);
   }
 
   @Get("live")
   live() {
+    // Liveness only checks if process is running
     return { status: "live", timestamp: new Date().toISOString() };
   }
 }
