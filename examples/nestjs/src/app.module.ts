@@ -15,6 +15,7 @@ import { MetricsModule } from "./common/metrics/metrics.module";
 import { TracingModule } from "./common/tracing/tracing.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ThrottlerBehindProxyGuard } from "./common/guards/throttler-behind-proxy.guard";
+import { ApiKeyGuard } from "./common/guards/api-key.guard";
 import { TerminusModule } from "@nestjs/terminus";
 import { LoggerModule } from "nestjs-pino";
 
@@ -92,6 +93,7 @@ import { LoggerModule } from "nestjs-pino";
       provide: APP_GUARD,
       useClass: ThrottlerBehindProxyGuard,
     },
+    ApiKeyGuard, // Register guard for dependency injection
     // Interceptors are executed in reverse order of registration
     // So RequestIdInterceptor runs first, then Tracing, then Metrics, then Performance, then Logging
     {
