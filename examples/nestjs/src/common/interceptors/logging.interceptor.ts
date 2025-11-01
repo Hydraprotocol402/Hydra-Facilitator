@@ -7,7 +7,7 @@ import {
 import { Observable } from "rxjs";
 import { tap } from "rxjs/operators";
 import { PinoLogger } from "nestjs-pino";
-
+import * as opentelemetry from "@opentelemetry/api";
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   constructor(private readonly logger: PinoLogger) {}
@@ -22,9 +22,15 @@ export class LoggingInterceptor implements NestInterceptor {
     const routePath = route?.path || url.split("?")[0];
     const startTime = Date.now();
 
+    const span = opentelemetry.trace.getActiveSpan();
+    const traceId = span?.spanContext().traceId;
+    const spanId = span?.spanContext().spanId;
+
     // Enhanced request logging
     const logContext = {
       requestId,
+      traceId,
+      spanId,
       method,
       url,
       route: routePath,
