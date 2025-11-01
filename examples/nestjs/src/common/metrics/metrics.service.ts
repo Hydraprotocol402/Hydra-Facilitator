@@ -15,20 +15,29 @@ export class MetricsService {
   private readonly paymentVerificationDuration: Histogram<string>;
   private readonly paymentSettlementDuration: Histogram<string>;
   private readonly paymentConfirmationWaitDuration: Histogram<string>;
+  private readonly serviceName: string;
 
   constructor() {
+    // Get service name and environment from env or defaults
+    this.serviceName =
+      process.env.OTEL_SERVICE_NAME ||
+      process.env.SERVICE_NAME ||
+      "hydra-x402-facilitator";
+
     // HTTP request metrics
+    // Include service and environment labels for better filtering/grouping
     this.httpRequestCounter = new Counter({
       name: "http_requests_total",
       help: "Total number of HTTP requests",
-      labelNames: ["method", "route", "status_code"],
+      labelNames: ["service", "method", "route", "status_code"],
       registers: [register],
+      // Set default label values (will be overridden per metric if needed)
     });
 
     this.httpRequestDuration = new Histogram({
       name: "http_request_duration_seconds",
       help: "Duration of HTTP requests in seconds",
-      labelNames: ["method", "route", "status_code"],
+      labelNames: ["service", "method", "route", "status_code"],
       buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10],
       registers: [register],
     });
@@ -36,7 +45,7 @@ export class MetricsService {
     this.httpRequestSize = new Histogram({
       name: "http_request_size_bytes",
       help: "Size of HTTP requests in bytes",
-      labelNames: ["method", "route"],
+      labelNames: ["service", "method", "route"],
       buckets: [100, 500, 1000, 5000, 10000, 50000, 100000],
       registers: [register],
     });
@@ -45,6 +54,7 @@ export class MetricsService {
     this.activeConnections = new Gauge({
       name: "http_active_connections",
       help: "Number of active HTTP connections",
+      labelNames: ["service"],
       registers: [register],
     });
 
@@ -52,7 +62,7 @@ export class MetricsService {
     this.errorCounter = new Counter({
       name: "http_errors_total",
       help: "Total number of HTTP errors",
-      labelNames: ["method", "route", "status_code", "error_type"],
+      labelNames: ["service", "method", "route", "status_code", "error_type"],
       registers: [register],
     });
 
@@ -125,6 +135,7 @@ export class MetricsService {
     const normalizedRoute = this.normalizeRoute(route);
 
     this.httpRequestCounter.inc({
+      service: this.serviceName,
       method,
       route: normalizedRoute,
       status_code: statusCode.toString(),
@@ -132,6 +143,7 @@ export class MetricsService {
 
     this.httpRequestDuration.observe(
       {
+        service: this.serviceName,
         method,
         route: normalizedRoute,
         status_code: statusCode.toString(),
@@ -142,6 +154,7 @@ export class MetricsService {
     if (requestSize) {
       this.httpRequestSize.observe(
         {
+          service: this.serviceName,
           method,
           route: normalizedRoute,
         },
@@ -159,6 +172,7 @@ export class MetricsService {
     const normalizedRoute = this.normalizeRoute(route);
 
     this.errorCounter.inc({
+      service: this.serviceName,
       method,
       route: normalizedRoute,
       status_code: statusCode.toString(),
@@ -167,11 +181,11 @@ export class MetricsService {
   }
 
   incrementActiveConnections(): void {
-    this.activeConnections.inc();
+    this.activeConnections.inc({ service: this.serviceName });
   }
 
   decrementActiveConnections(): void {
-    this.activeConnections.dec();
+    this.activeConnections.dec({ service: this.serviceName });
   }
 
   recordBusinessMetric(
