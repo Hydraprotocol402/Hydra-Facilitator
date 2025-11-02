@@ -91,4 +91,22 @@ export class ConfigService {
 
     return Object.keys(config).length > 0 ? config : undefined;
   }
+
+  get gasBalanceThresholdEVM(): bigint {
+    const threshold = this.nestConfigService.get<string>(
+      "GAS_BALANCE_THRESHOLD_EVM",
+      "0.01",
+    );
+    // Convert ETH to wei (18 decimals): 0.01 ETH = 10000000000000000 wei
+    return BigInt(Math.round(parseFloat(threshold) * 1e18));
+  }
+
+  get gasBalanceThresholdSVM(): bigint {
+    const threshold = this.nestConfigService.get<string>(
+      "GAS_BALANCE_THRESHOLD_SVM",
+      "0.1",
+    );
+    // Convert SOL to lamports (9 decimals): 0.1 SOL = 100000000 lamports
+    return BigInt(Math.round(parseFloat(threshold) * 1e9));
+  }
 }
