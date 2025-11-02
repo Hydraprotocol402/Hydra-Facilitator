@@ -54,6 +54,18 @@ export class ConfigService {
     return this.nestConfigService.get<number>("RATE_LIMIT_SUPPORTED", 200);
   }
 
+  get rateLimitDiscovery(): number {
+    return this.nestConfigService.get<number>("RATE_LIMIT_DISCOVERY", 200);
+  }
+
+  get databaseUrl(): string | undefined {
+    return this.nestConfigService.get<string>("DATABASE_URL");
+  }
+
+  get isDatabaseEnabled(): boolean {
+    return !!this.databaseUrl;
+  }
+
   get allowedNetworks(): Set<string> | undefined {
     const raw = this.nestConfigService.get<string>("ALLOWED_NETWORKS");
     if (!raw) return undefined;

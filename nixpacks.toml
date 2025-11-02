@@ -5,7 +5,10 @@ nixPkgs = ['nodejs_22', 'pnpm', 'openssl']
 cmds = ['pnpm install --frozen-lockfile']
 
 [phases.build]
-cmds = ['cd examples/nestjs && pnpm run build']
+cmds = [
+  'cd examples/nestjs && pnpm prisma generate',
+  'cd examples/nestjs && pnpm run build',
+]
 
 [start]
-cmd = "cd examples/nestjs && pnpm run start:prod"
+cmd = "cd examples/nestjs && pnpm prisma migrate deploy && pnpm run start:prod"

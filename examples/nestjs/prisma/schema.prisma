@@ -1,0 +1,29 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DiscoveryResource {
+  id          String    @id @default(uuid())
+  resource    String    @unique @db.VarChar(2048)
+  type        String    @db.VarChar(50)
+  x402Version Int
+  accepts     Json // Array of PaymentRequirements (JSONB in PostgreSQL)
+  lastUpdated DateTime  @default(now())
+  metadata    Json      @default("{}") // Additional metadata (JSONB in PostgreSQL)
+  deletedAt   DateTime? // Soft delete timestamp for TTL (7 days inactive)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([lastUpdated(sort: Desc)])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("discovery_resources")
+}
