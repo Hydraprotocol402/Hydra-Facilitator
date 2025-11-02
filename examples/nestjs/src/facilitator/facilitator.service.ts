@@ -10,6 +10,7 @@ import {
   SupportedEVMNetworks,
   SupportedSVMNetworks,
   isSvmSignerWallet,
+  isEvmSignerWallet,
   SupportedPaymentKind,
   Signer,
   ConnectedClient,
@@ -17,6 +18,7 @@ import {
 import { ConfigService } from "../config/config.service";
 import { PinoLogger } from "nestjs-pino";
 import { MetricsService } from "../common/metrics/metrics.service";
+import type { Address } from "viem";
 
 type ErrorCategory =
   | "validation_error"
@@ -139,6 +141,120 @@ export class FacilitatorService {
       return parseInt(paymentRequirements.maxAmountRequired, 10);
     } catch {
       return parseInt(paymentRequirements.maxAmountRequired, 10);
+    }
+  }
+
+  private async checkFacilitatorGasBalance(
+    signer: Signer,
+    network: string,
+  ): Promise<{
+    sufficient: boolean;
+    balance: bigint;
+    threshold: bigint;
+    address: string;
+  }> {
+    const balanceCheckStartTime = Date.now();
+
+    try {
+      let address: string;
+      let balance: bigint;
+      let threshold: bigint;
+
+      if (isEvmSignerWallet(signer)) {
+        // For EVM signers, check if it's a LocalAccount or SignerWallet
+        const evmSigner = signer as any;
+        if (evmSigner.address) {
+          // LocalAccount has direct address property
+          address = evmSigner.address;
+        } else if (evmSigner.account?.address) {
+          // SignerWallet has account.address
+          address = evmSigner.account.address;
+        } else {
+          throw new Error("Unable to extract address from EVM signer");
+        }
+
+        threshold = this.configService.gasBalanceThresholdEVM;
+        const client = createConnectedClient(
+          network,
+          this.configService.x402Config,
+        );
+        balance = await (client as any).getBalance({
+          address: address as Address,
+        });
+      } else if (isSvmSignerWallet(signer)) {
+        // For Solana signers, address is directly on the signer
+        const svmSigner = signer as any;
+        address = svmSigner.address;
+
+        threshold = this.configService.gasBalanceThresholdSVM;
+        // Use createConnectedClient for SVM to get RPC access
+        const client = createConnectedClient(
+          network,
+          this.configService.x402Config,
+        );
+        // SVM connected client is actually an RPC client
+        const balanceResponse = await (client as any)
+          .getBalance(address)
+          .send();
+        balance = BigInt(balanceResponse.value);
+      } else {
+        throw new Error(`Unsupported signer type for network: ${network}`);
+      }
+
+      const sufficient = balance >= threshold;
+      const duration = (Date.now() - balanceCheckStartTime) / 1000;
+
+      // Record metric
+      this.metricsService.recordFacilitatorGasBalance(
+        network,
+        address,
+        balance,
+      );
+
+      if (!sufficient) {
+        this.logger.error(
+          {
+            network,
+            walletAddress: address,
+            balance: balance.toString(),
+            threshold: threshold.toString(),
+            duration,
+          },
+          "Facilitator gas balance insufficient",
+        );
+      } else {
+        this.logger.debug(
+          {
+            network,
+            walletAddress: address,
+            balance: balance.toString(),
+            threshold: threshold.toString(),
+            duration,
+          },
+          "Facilitator gas balance check passed",
+        );
+      }
+
+      return { sufficient, balance, threshold, address };
+    } catch (error) {
+      const duration = (Date.now() - balanceCheckStartTime) / 1000;
+      const errorClass = this.classifyError(error);
+
+      this.logger.error(
+        {
+          network,
+          duration,
+          errorCategory: errorClass.category,
+          error: errorClass.message,
+        },
+        "Failed to check facilitator gas balance",
+      );
+
+      // On RPC error, we still want to fail fast rather than proceed
+      // This prevents transactions from failing later with cryptic errors
+      throw new BadRequestException(
+        `Unable to verify facilitator gas balance: ${errorClass.message}`,
+      );
     }
   }
 
@@ -433,6 +549,44 @@ export class FacilitatorService {
 
         throw new BadRequestException(
           `Invalid network: ${paymentRequirements.network}`,
+        );
+      }
+
+      // Check facilitator gas balance before settlement
+      const gasBalanceCheck = await this.checkFacilitatorGasBalance(
+        signer,
+        paymentRequirements.network,
+      );
+
+      if (!gasBalanceCheck.sufficient) {
+        const duration = (Date.now() - startTime) / 1000;
+
+        this.metricsService.recordPaymentSettlement(
+          network,
+          scheme,
+          "failure",
+          "insufficient_facilitator_gas_balance",
+          duration,
+        );
+
+        this.logger.error(
+          {
+            network,
+            scheme,
+            payer: payer || "unknown",
+            amount,
+            walletAddress: gasBalanceCheck.address,
+            balance: gasBalanceCheck.balance.toString(),
+            threshold: gasBalanceCheck.threshold.toString(),
+            duration,
+            errorCategory: "blockchain_error",
+            reason: "insufficient_facilitator_gas_balance",
+          },
+          "Payment settlement blocked: insufficient facilitator gas balance",
+        );
+
+        throw new BadRequestException(
+          `Facilitator gas balance insufficient for ${network}. Balance: ${gasBalanceCheck.balance.toString()}, Required: ${gasBalanceCheck.threshold.toString()}. Wallet: ${gasBalanceCheck.address}`,
         );
       }
 

@@ -15,6 +15,7 @@ export class MetricsService {
   private readonly paymentVerificationDuration: Histogram<string>;
   private readonly paymentSettlementDuration: Histogram<string>;
   private readonly paymentConfirmationWaitDuration: Histogram<string>;
+  private readonly facilitatorGasBalance: Gauge<string>;
   private readonly serviceName: string;
 
   constructor() {
@@ -121,6 +122,14 @@ export class MetricsService {
       help: "Time waiting for blockchain confirmation in seconds",
       labelNames: ["network", "scheme"],
       buckets: [1, 2, 5, 10, 30, 60, 120, 300],
+      registers: [register],
+    });
+
+    // Facilitator gas balance gauge
+    this.facilitatorGasBalance = new Gauge({
+      name: "facilitator_gas_balance",
+      help: "Facilitator wallet gas balance in native token units (wei/lamports)",
+      labelNames: ["network", "wallet_address"],
       registers: [register],
     });
   }
@@ -261,6 +270,25 @@ export class MetricsService {
 
   recordPaymentAmount(network: string, scheme: string, amount: number): void {
     this.paymentAmountHistogram.observe({ network, scheme }, amount);
+  }
+
+  recordFacilitatorGasBalance(
+    network: string,
+    walletAddress: string,
+    balanceWei: bigint,
+  ): void {
+    // Convert bigint to number for Prometheus (approximation if too large)
+    // Prometheus doesn't natively support bigint, so we convert to number
+    // This is safe for balances up to ~9007199254740991 (Number.MAX_SAFE_INTEGER)
+    const balanceNumber =
+      balanceWei > BigInt(Number.MAX_SAFE_INTEGER)
+        ? Number.MAX_SAFE_INTEGER
+        : Number(balanceWei);
+
+    this.facilitatorGasBalance.set(
+      { network, wallet_address: walletAddress },
+      balanceNumber,
+    );
   }
 
   private normalizeRoute(route: string): string {
