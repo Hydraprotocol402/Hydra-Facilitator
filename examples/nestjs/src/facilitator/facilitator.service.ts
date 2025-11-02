@@ -223,7 +223,7 @@ export class FacilitatorService {
           "Facilitator gas balance insufficient",
         );
       } else {
-        this.logger.debug(
+        this.logger.info(
           {
             network,
             walletAddress: address,

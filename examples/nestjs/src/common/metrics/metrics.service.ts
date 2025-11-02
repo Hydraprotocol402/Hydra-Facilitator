@@ -1,5 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { Counter, Histogram, Gauge, register } from "prom-client";
+import { formatEther } from "viem";
+import { SupportedEVMNetworks } from "x402-hydra-facilitator/types";
+
+// Solana lamports to SOL conversion constant (1 SOL = 1,000,000,000 lamports)
+const LAMPORTS_PER_SOL = BigInt(1_000_000_000);
 
 @Injectable()
 export class MetricsService {
@@ -128,7 +133,7 @@ export class MetricsService {
     // Facilitator gas balance gauge
     this.facilitatorGasBalance = new Gauge({
       name: "facilitator_gas_balance",
-      help: "Facilitator wallet gas balance in native token units (wei/lamports)",
+      help: "Facilitator wallet gas balance in native token units (ETH for EVM, SOL for SVM)",
       labelNames: ["network", "wallet_address"],
       registers: [register],
     });
@@ -277,17 +282,31 @@ export class MetricsService {
     walletAddress: string,
     balanceWei: bigint,
   ): void {
-    // Convert bigint to number for Prometheus (approximation if too large)
-    // Prometheus doesn't natively support bigint, so we convert to number
-    // This is safe for balances up to ~9007199254740991 (Number.MAX_SAFE_INTEGER)
-    const balanceNumber =
-      balanceWei > BigInt(Number.MAX_SAFE_INTEGER)
-        ? Number.MAX_SAFE_INTEGER
-        : Number(balanceWei);
+    // Convert bigint to number for Prometheus
+    // For EVM: balanceWei is in wei (18 decimals), convert to ETH using viem's formatEther
+    // For SVM: balanceWei is in lamports (9 decimals), convert to SOL manually
+    // This prevents precision loss when storing very large wei/lamport values
+
+    // Determine if this is EVM or SVM based on supported network arrays
+    // This is more robust than string matching and stays in sync with the package's network definitions
+    const isEVM = SupportedEVMNetworks.includes(network as any);
+    let balanceNative: number;
+
+    if (isEVM) {
+      // Use viem's formatEther to convert wei to ETH (returns string, then parse to number)
+      balanceNative = parseFloat(formatEther(balanceWei));
+    } else {
+      // For SVM: convert lamports to SOL using constant (similar to viem's approach)
+      // 1 SOL = 1,000,000,000 lamports
+      balanceNative = Number(balanceWei) / Number(LAMPORTS_PER_SOL);
+    }
+
+    // Store wallet address as string label (sanitize to ensure it's treated as string)
+    const sanitizedAddress = String(walletAddress);
 
     this.facilitatorGasBalance.set(
-      { network, wallet_address: walletAddress },
-      balanceNumber,
+      { network, wallet_address: sanitizedAddress },
+      balanceNative,
     );
   }
 
