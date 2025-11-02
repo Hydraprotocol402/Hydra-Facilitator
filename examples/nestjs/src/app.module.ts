@@ -18,6 +18,7 @@ import { ThrottlerBehindProxyGuard } from "./common/guards/throttler-behind-prox
 import { ApiKeyGuard } from "./common/guards/api-key.guard";
 import { TerminusModule } from "@nestjs/terminus";
 import { LoggerModule } from "nestjs-pino";
+import { PrismaModule } from "./common/prisma/prisma.module";
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { LoggerModule } from "nestjs-pino";
       },
     }),
     ConfigModule,
+    PrismaModule, // Prisma database client
     MetricsModule, // Prometheus metrics
     TracingModule, // OpenTelemetry tracing
     ThrottlerModule.forRootAsync({

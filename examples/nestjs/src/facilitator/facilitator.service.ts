@@ -18,6 +18,7 @@ import {
 import { ConfigService } from "../config/config.service";
 import { PinoLogger } from "nestjs-pino";
 import { MetricsService } from "../common/metrics/metrics.service";
+import { DiscoveryService } from "../discovery/discovery.service";
 import type { Address } from "viem";
 
 type ErrorCategory =
@@ -33,6 +34,7 @@ export class FacilitatorService {
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
     private readonly metricsService: MetricsService,
+    private readonly discoveryService: DiscoveryService,
   ) {
     this.logger.setContext(FacilitatorService.name);
   }
@@ -632,6 +634,23 @@ export class FacilitatorService {
           },
           "Payment settled successfully",
         );
+
+        // Auto-register resource in discovery catalog (async, non-blocking)
+        if (paymentRequirements.resource) {
+          // Fire and forget - don't block settlement response
+          this.discoveryService
+            .registerResource(paymentRequirements, paymentPayload.network)
+            .catch((error) => {
+              this.logger.warn(
+                {
+                  error:
+                    error instanceof Error ? error.message : "Unknown error",
+                  resource: paymentRequirements.resource,
+                },
+                "Failed to register resource in discovery (non-critical)",
+              );
+            });
+        }
       } else {
         this.logger.warn(
           {

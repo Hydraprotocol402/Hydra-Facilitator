@@ -14,6 +14,10 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "lint": "eslint . --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -47,7 +51,9 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "uuid": "^13.0.0",
-    "x402-hydra-facilitator": "^0.7.0"
+    "x402-hydra-facilitator": "^0.7.0",
+    "prisma": "^5.19.1",
+    "@prisma/client": "^5.19.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
