@@ -19,6 +19,21 @@ export class MetricsInterceptor implements NestInterceptor {
     const { method, url, route } = request;
 
     const routePath = route?.path || url.split("?")[0];
+
+    // Exclude internal/monitoring routes from business metrics
+    // These routes are infrastructure-level and should not dilute API metrics
+    // Note: Test endpoints (/health/test/*) are INCLUDED to allow testing alerts
+    const shouldExclude =
+      routePath === "/metrics" ||
+      routePath === "/metrics/" ||
+      routePath === "/health" ||
+      routePath === "/health/";
+
+    // If excluded, still process request but don't record metrics
+    if (shouldExclude) {
+      return next.handle();
+    }
+
     const startTime = Date.now();
 
     // Track active connections
