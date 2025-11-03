@@ -67,10 +67,15 @@ export class ConfigService {
   }
 
   get allowLocalhostResources(): boolean {
-    return this.nestConfigService.get<boolean>(
+    const value = this.nestConfigService.get<string | boolean>(
       "ALLOW_LOCALHOST_RESOURCES",
-      false,
+      "false",
     );
+    // Handle string values from environment variables
+    if (typeof value === "string") {
+      return value.toLowerCase() === "true";
+    }
+    return Boolean(value);
   }
 
   get allowedNetworks(): Set<string> | undefined {
