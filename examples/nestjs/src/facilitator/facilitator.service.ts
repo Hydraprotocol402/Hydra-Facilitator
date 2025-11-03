@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { Injectable, BadRequestException, OnModuleInit } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
 import { verify, settle } from "x402-hydra-facilitator/facilitator";
 import {
   PaymentPayload,
@@ -29,7 +30,7 @@ type ErrorCategory =
   | "unknown_error";
 
 @Injectable()
-export class FacilitatorService {
+export class FacilitatorService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
@@ -37,6 +38,38 @@ export class FacilitatorService {
     private readonly discoveryService: DiscoveryService,
   ) {
     this.logger.setContext(FacilitatorService.name);
+  }
+
+  /**
+   * Refresh gas balances every 5 minutes using declarative cron pattern.
+   * Cron expression runs at 0 seconds of every 5th minute
+   */
+  @Cron("0 */5 * * * *")
+  handleGasBalanceRefresh() {
+    this.refreshAllGasBalances().catch((error) => {
+      this.logger.error(
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        "Failed to refresh gas balances in scheduled task",
+      );
+    });
+  }
+
+  onModuleInit() {
+    // Refresh immediately on startup to populate metrics
+    this.refreshAllGasBalances().catch((error) => {
+      this.logger.warn(
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        "Failed to refresh gas balances on startup (non-critical)",
+      );
+    });
+
+    this.logger.info(
+      "Scheduled periodic gas balance refresh (every 5 minutes)",
+    );
   }
 
   private extractPayerFromPayload(
@@ -768,5 +801,118 @@ export class FacilitatorService {
     }
 
     return { kinds };
+  }
+
+  /**
+   * Refresh gas balance metrics for all configured networks.
+   * This method is called periodically to ensure metrics stay current
+   * even when no settlement activity occurs.
+   *
+   * Only checks networks that are actually configured (have private keys
+   * and are in the allowed networks list) to minimize RPC costs.
+   */
+  async refreshAllGasBalances(): Promise<void> {
+    const startTime = Date.now();
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      // Get all configured networks (same logic as getSupportedPaymentKinds)
+      const networksToCheck: string[] = [];
+
+      // EVM networks: check each network individually
+      if (this.configService.evmPrivateKey) {
+        for (const network of SupportedEVMNetworks) {
+          if (this.configService.isNetworkAllowed(network)) {
+            networksToCheck.push(network);
+          }
+        }
+      }
+
+      // SVM networks: same private key works for all SVM networks
+      if (this.configService.svmPrivateKey) {
+        for (const network of SupportedSVMNetworks) {
+          if (this.configService.isNetworkAllowed(network)) {
+            networksToCheck.push(network);
+          }
+        }
+      }
+
+      if (networksToCheck.length === 0) {
+        this.logger.debug(
+          "No networks configured, skipping gas balance refresh",
+        );
+        return;
+      }
+
+      // Check balance for each network
+      // Use Promise.allSettled to continue even if some networks fail
+      await Promise.allSettled(
+        networksToCheck.map(async (network) => {
+          try {
+            let signer: Signer;
+
+            // Create signer for the network
+            if (SupportedEVMNetworks.includes(network as any)) {
+              const privateKey = this.configService.evmPrivateKey;
+              if (!privateKey) {
+                throw new Error("EVM_PRIVATE_KEY not configured");
+              }
+              signer = await createSigner(
+                network as any,
+                privateKey,
+                this.configService.x402Config,
+              );
+            } else if (SupportedSVMNetworks.includes(network as any)) {
+              const privateKey = this.configService.svmPrivateKey;
+              if (!privateKey) {
+                throw new Error("SVM_PRIVATE_KEY not configured");
+              }
+              signer = await createSigner(network as any, privateKey);
+            } else {
+              throw new Error(`Unsupported network: ${network}`);
+            }
+
+            // Check balance (this also updates the metric)
+            await this.checkFacilitatorGasBalance(signer, network);
+            successCount++;
+          } catch (error) {
+            errorCount++;
+            const errorMessage =
+              error instanceof Error ? error.message : "Unknown error";
+            this.logger.warn(
+              {
+                network,
+                error: errorMessage,
+              },
+              "Failed to refresh gas balance for network",
+            );
+            // Don't throw - continue with other networks
+          }
+        }),
+      );
+
+      const duration = Date.now() - startTime;
+
+      this.logger.info(
+        {
+          networksChecked: networksToCheck.length,
+          successCount,
+          errorCount,
+          durationMs: duration,
+        },
+        "Gas balance refresh completed",
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error(
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+          durationMs: duration,
+        },
+        "Gas balance refresh failed",
+      );
+      // Don't throw - this is a background task
+    }
   }
 }
