@@ -327,26 +327,24 @@ export class DiscoveryService {
       const private172Range: any[] = [];
       for (let i = 16; i <= 31; i++) {
         private172Range.push({ resource: { startsWith: `http://172.${i}.` } });
+        private172Range.push({ resource: { startsWith: `https://172.${i}.` } });
       }
 
-      where.NOT = [
-        { resource: { contains: "localhost" } },
-        { resource: { contains: "127.0.0.1" } },
-        { resource: { contains: "0.0.0.0" } },
-        { resource: { startsWith: "http://10." } },
-        ...private172Range, // 172.16.0.0/12 range
-        { resource: { startsWith: "http://192.168." } },
-        { resource: { startsWith: "http://169.254." } },
-        // Also check HTTPS variants
-        { resource: { startsWith: "https://10." } },
-        { resource: { startsWith: "https://192.168." } },
-        { resource: { startsWith: "https://169.254." } },
-      ];
-
-      // Add HTTPS variants for 172.x range
-      for (let i = 16; i <= 31; i++) {
-        where.NOT.push({ resource: { startsWith: `https://172.${i}.` } });
-      }
+      // Use OR condition - exclude if ANY of these patterns match
+      where.NOT = {
+        OR: [
+          { resource: { contains: "localhost" } },
+          { resource: { contains: "127.0.0.1" } },
+          { resource: { contains: "0.0.0.0" } },
+          { resource: { startsWith: "http://10." } },
+          { resource: { startsWith: "https://10." } },
+          { resource: { startsWith: "http://192.168." } },
+          { resource: { startsWith: "https://192.168." } },
+          { resource: { startsWith: "http://169.254." } },
+          { resource: { startsWith: "https://169.254." } },
+          ...private172Range, // 172.16.0.0/12 range (both HTTP and HTTPS)
+        ],
+      };
     }
 
     // Apply type filter

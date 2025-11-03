@@ -729,7 +729,7 @@ export class FacilitatorService {
       kinds.push({
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "base",
       });
     }
 
@@ -737,7 +737,7 @@ export class FacilitatorService {
     if (this.configService.svmPrivateKey) {
       try {
         const signer = await createSigner(
-          "solana-devnet",
+          "solana",
           this.configService.svmPrivateKey!,
         );
         const feePayer = isSvmSignerWallet(signer) ? signer.address : undefined;
@@ -745,7 +745,7 @@ export class FacilitatorService {
         kinds.push({
           x402Version: 1,
           scheme: "exact",
-          network: "solana-devnet",
+          network: "solana",
           extra: feePayer
             ? {
                 feePayer,
