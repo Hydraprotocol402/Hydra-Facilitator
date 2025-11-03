@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModule } from "./config/config.module";
 import { FacilitatorModule } from "./facilitator/facilitator.module";
 import { ThrottlerModule } from "@nestjs/throttler";
@@ -22,6 +23,7 @@ import { PrismaModule } from "./common/prisma/prisma.module";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(), // Enable scheduling for periodic tasks
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === "production" ? "info" : "debug",
