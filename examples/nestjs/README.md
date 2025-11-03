@@ -64,6 +64,7 @@ This server implements the x402 facilitator interface with the following endpoin
    - `RATE_LIMIT_SETTLE` - Max requests per window for /settle (default: 50)
    - `RATE_LIMIT_SUPPORTED` - Max requests per window for /supported (default: 200)
    - `RATE_LIMIT_DISCOVERY` - Max requests per window for /discovery/resources (default: 200)
+   - `ALLOW_LOCALHOST_RESOURCES` - Allow localhost/private IP resources in discovery (default: false). Set to `true` for development/testing only
 
 4. **Initialize database schema**:
 

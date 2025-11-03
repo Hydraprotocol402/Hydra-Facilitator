@@ -66,6 +66,13 @@ export class ConfigService {
     return !!this.databaseUrl;
   }
 
+  get allowLocalhostResources(): boolean {
+    return this.nestConfigService.get<boolean>(
+      "ALLOW_LOCALHOST_RESOURCES",
+      false,
+    );
+  }
+
   get allowedNetworks(): Set<string> | undefined {
     const raw = this.nestConfigService.get<string>("ALLOWED_NETWORKS");
     if (!raw) return undefined;

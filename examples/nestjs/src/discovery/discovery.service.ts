@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { PaymentRequirements } from "x402-hydra-facilitator/types";
 import { PinoLogger } from "nestjs-pino";
+import { ConfigService } from "../config/config.service";
 import { URL } from "url";
 
 export interface DiscoveryResource {
@@ -36,12 +37,15 @@ export class DiscoveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: PinoLogger,
+    private readonly configService: ConfigService,
   ) {
     this.logger.setContext(DiscoveryService.name);
   }
 
   /**
    * Validates that a resource URL is a valid HTTP/HTTPS URL
+   * Rejects localhost, private IPs, and internal network addresses by default
+   * unless ALLOW_LOCALHOST_RESOURCES is set to true
    */
   private validateResourceUrl(url: string): boolean {
     if (!url || typeof url !== "string") {
@@ -49,7 +53,53 @@ export class DiscoveryService {
     }
     try {
       const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
+
+      // Must be HTTP or HTTPS
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return false;
+      }
+
+      // If localhost is allowed, skip validation
+      if (this.configService.allowLocalhostResources) {
+        return true;
+      }
+
+      // Reject localhost and local network addresses
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Reject localhost variants
+      if (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname.startsWith("0.0.0.0") ||
+        hostname.startsWith("localhost.")
+      ) {
+        return false;
+      }
+
+      // Reject private IP ranges (RFC 1918)
+      // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+      const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+      const match = hostname.match(ipv4Regex);
+      if (match) {
+        const octets = match.slice(1, 5).map(Number);
+        const [a, b] = octets;
+
+        // 10.0.0.0/8
+        if (a === 10) return false;
+
+        // 172.16.0.0/12
+        if (a === 172 && b >= 16 && b <= 31) return false;
+
+        // 192.168.0.0/16
+        if (a === 192 && b === 168) return false;
+
+        // Reject link-local addresses (169.254.x.x)
+        if (a === 169 && b === 254) return false;
+      }
+
+      return true;
     } catch {
       return false;
     }
@@ -270,6 +320,34 @@ export class DiscoveryService {
       // Only show non-deleted resources
       deletedAt: null,
     };
+
+    // Filter out localhost/private IP resources unless explicitly allowed
+    if (!this.configService.allowLocalhostResources) {
+      // Build 172.16.0.0/12 range filters (172.16.x.x through 172.31.x.x)
+      const private172Range: any[] = [];
+      for (let i = 16; i <= 31; i++) {
+        private172Range.push({ resource: { startsWith: `http://172.${i}.` } });
+      }
+
+      where.NOT = [
+        { resource: { contains: "localhost" } },
+        { resource: { contains: "127.0.0.1" } },
+        { resource: { contains: "0.0.0.0" } },
+        { resource: { startsWith: "http://10." } },
+        ...private172Range, // 172.16.0.0/12 range
+        { resource: { startsWith: "http://192.168." } },
+        { resource: { startsWith: "http://169.254." } },
+        // Also check HTTPS variants
+        { resource: { startsWith: "https://10." } },
+        { resource: { startsWith: "https://192.168." } },
+        { resource: { startsWith: "https://169.254." } },
+      ];
+
+      // Add HTTPS variants for 172.x range
+      for (let i = 16; i <= 31; i++) {
+        where.NOT.push({ resource: { startsWith: `https://172.${i}.` } });
+      }
+    }
 
     // Apply type filter
     if (filters.type) {
