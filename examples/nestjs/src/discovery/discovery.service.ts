@@ -43,9 +43,9 @@ export class DiscoveryService {
   }
 
   /**
-   * Validates that a resource URL is a valid HTTP/HTTPS URL
-   * Rejects localhost, private IPs, and internal network addresses by default
-   * unless ALLOW_LOCALHOST_RESOURCES is set to true
+   * Validates that a resource URL is a valid URL
+   * For production: Requires HTTPS and rejects localhost/private IPs
+   * For development (ALLOW_LOCALHOST_RESOURCES=true): Allows HTTP/HTTPS for localhost/private IPs only
    */
   private validateResourceUrl(url: string): boolean {
     if (!url || typeof url !== "string") {
@@ -59,44 +59,35 @@ export class DiscoveryService {
         return false;
       }
 
-      // If localhost is allowed, skip validation
-      if (this.configService.allowLocalhostResources) {
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Check if this is a localhost or private IP
+      const isLocalhost =
+        hostname === "localhost" ||
+        hostname.startsWith("localhost.") ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname === "0.0.0.0";
+
+      const privateIpRegex =
+        /^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/;
+      const isPrivateIp = privateIpRegex.test(hostname);
+
+      const isLocal = isLocalhost || isPrivateIp;
+
+      // If localhost is allowed, accept HTTP/HTTPS for local resources
+      if (this.configService.allowLocalhostResources && isLocal) {
         return true;
       }
 
-      // Reject localhost and local network addresses
-      const hostname = parsed.hostname.toLowerCase();
-
-      // Reject localhost variants
-      if (
-        hostname === "localhost" ||
-        hostname === "127.0.0.1" ||
-        hostname === "::1" ||
-        hostname.startsWith("0.0.0.0") ||
-        hostname.startsWith("localhost.")
-      ) {
+      // For production/public resources: require HTTPS
+      if (parsed.protocol !== "https:") {
         return false;
       }
 
-      // Reject private IP ranges (RFC 1918)
-      // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
-      const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-      const match = hostname.match(ipv4Regex);
-      if (match) {
-        const octets = match.slice(1, 5).map(Number);
-        const [a, b] = octets;
-
-        // 10.0.0.0/8
-        if (a === 10) return false;
-
-        // 172.16.0.0/12
-        if (a === 172 && b >= 16 && b <= 31) return false;
-
-        // 192.168.0.0/16
-        if (a === 192 && b === 168) return false;
-
-        // Reject link-local addresses (169.254.x.x)
-        if (a === 169 && b === 254) return false;
+      // Reject localhost and private IPs in production
+      if (isLocal) {
+        return false;
       }
 
       return true;
@@ -321,30 +312,68 @@ export class DiscoveryService {
       deletedAt: null,
     };
 
-    // Filter out localhost/private IP resources unless explicitly allowed
-    if (!this.configService.allowLocalhostResources) {
+    // Protocol and localhost filtering
+    if (this.configService.allowLocalhostResources) {
+      // Development mode: Allow HTTP/HTTPS for localhost/private IPs, HTTPS only for public
+      where.OR = [
+        { resource: { startsWith: "https://" } },
+        // Only allow HTTP for localhost/private IPs
+        {
+          AND: [
+            { resource: { startsWith: "http://" } },
+            {
+              OR: [
+                { resource: { contains: "localhost", mode: "insensitive" } },
+                { resource: { contains: "127.0.0.1" } },
+                { resource: { contains: "0.0.0.0" } },
+                { resource: { startsWith: "http://10." } },
+                { resource: { startsWith: "http://192.168." } },
+                { resource: { startsWith: "http://169.254." } },
+                ...Array.from({ length: 16 }, (_, i) => ({
+                  resource: { startsWith: `http://172.${i + 16}.` },
+                })),
+              ],
+            },
+          ],
+        },
+      ];
+    } else {
+      // Production mode: HTTPS only AND exclude localhost/private IPs
       // Build 172.16.0.0/12 range filters (172.16.x.x through 172.31.x.x)
       const private172Range: any[] = [];
       for (let i = 16; i <= 31; i++) {
-        private172Range.push({ resource: { startsWith: `http://172.${i}.` } });
         private172Range.push({ resource: { startsWith: `https://172.${i}.` } });
       }
 
-      // Use OR condition - exclude if ANY of these patterns match
-      where.NOT = {
-        OR: [
-          { resource: { contains: "localhost" } },
-          { resource: { contains: "127.0.0.1" } },
-          { resource: { contains: "0.0.0.0" } },
-          { resource: { startsWith: "http://10." } },
-          { resource: { startsWith: "https://10." } },
-          { resource: { startsWith: "http://192.168." } },
-          { resource: { startsWith: "https://192.168." } },
-          { resource: { startsWith: "http://169.254." } },
-          { resource: { startsWith: "https://169.254." } },
-          ...private172Range, // 172.16.0.0/12 range (both HTTP and HTTPS)
-        ],
-      };
+      // Production mode: HTTPS only AND exclude localhost/private IPs
+      // All conditions must be met: (lastUpdated >= threshold) AND (deletedAt IS NULL)
+      // AND (resource starts with https://) AND (resource does NOT contain localhost/private IPs)
+      where.AND = [
+        { lastUpdated: { gte: ttlThreshold } },
+        { deletedAt: null },
+        { resource: { startsWith: "https://" } },
+        {
+          NOT: {
+            OR: [
+              {
+                resource: {
+                  contains: "localhost",
+                  mode: "insensitive",
+                },
+              },
+              { resource: { contains: "127.0.0.1" } },
+              { resource: { contains: "0.0.0.0" } },
+              { resource: { startsWith: "https://10." } },
+              { resource: { startsWith: "https://192.168." } },
+              { resource: { startsWith: "https://169.254." } },
+              ...private172Range,
+            ],
+          },
+        },
+      ];
+      // Remove top-level properties since they're now in AND array
+      delete where.lastUpdated;
+      delete where.deletedAt;
     }
 
     // Apply type filter
