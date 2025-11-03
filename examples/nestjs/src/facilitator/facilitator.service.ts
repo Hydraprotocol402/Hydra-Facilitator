@@ -724,36 +724,42 @@ export class FacilitatorService {
   async getSupportedPaymentKinds(): Promise<{ kinds: SupportedPaymentKind[] }> {
     const kinds: SupportedPaymentKind[] = [];
 
-    // Add EVM network if private key is available
+    // EVM networks: check each network individually
     if (this.configService.evmPrivateKey) {
-      kinds.push({
-        x402Version: 1,
-        scheme: "exact",
-        network: "base",
-      });
+      for (const network of SupportedEVMNetworks) {
+        if (this.configService.isNetworkAllowed(network)) {
+          kinds.push({
+            x402Version: 1,
+            scheme: "exact",
+            network: network,
+          });
+        }
+      }
     }
 
-    // Add SVM network if private key is available
+    // SVM networks: same private key works for all SVM networks
     if (this.configService.svmPrivateKey) {
       try {
+        // Create signer once to extract feePayer (same keypair for all SVM networks)
         const signer = await createSigner(
-          "solana",
+          "solana", // Use any SVM network, they share the same keypair
           this.configService.svmPrivateKey!,
         );
         const feePayer = isSvmSignerWallet(signer) ? signer.address : undefined;
 
-        kinds.push({
-          x402Version: 1,
-          scheme: "exact",
-          network: "solana",
-          extra: feePayer
-            ? {
-                feePayer,
-              }
-            : undefined,
-        });
+        // Add each SVM network if allowed
+        for (const network of SupportedSVMNetworks) {
+          if (this.configService.isNetworkAllowed(network)) {
+            kinds.push({
+              x402Version: 1,
+              scheme: "exact",
+              network: network,
+              extra: feePayer ? { feePayer } : undefined,
+            });
+          }
+        }
       } catch (error) {
-        // If signer creation fails, skip SVM
+        // If signer creation fails, skip all SVM networks
         this.logger.warn(
           { error: error instanceof Error ? error.message : "Unknown error" },
           "Failed to create SVM signer for /supported endpoint",
