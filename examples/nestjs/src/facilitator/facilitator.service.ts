@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, OnModuleInit } from "@nestjs/common";
+import { Injectable, BadRequestException, OnModuleInit, Optional } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { verify, settle } from "x402-hydra-facilitator/facilitator";
 import {
@@ -35,7 +35,7 @@ export class FacilitatorService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
     private readonly metricsService: MetricsService,
-    private readonly discoveryService: DiscoveryService,
+    @Optional() private readonly discoveryService?: DiscoveryService,
   ) {
     this.logger.setContext(FacilitatorService.name);
   }
@@ -669,7 +669,7 @@ export class FacilitatorService implements OnModuleInit {
         );
 
         // Auto-register resource in discovery catalog (async, non-blocking)
-        if (paymentRequirements.resource) {
+        if (paymentRequirements.resource && this.discoveryService) {
           // Fire and forget - don't block settlement response
           this.discoveryService
             .registerResource(paymentRequirements, paymentPayload.network)

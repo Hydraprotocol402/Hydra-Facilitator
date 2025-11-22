@@ -182,6 +182,15 @@ export class DiscoveryService {
       return;
     }
 
+    // Skip if database is not enabled
+    if (!this.configService.isDatabaseEnabled) {
+      this.logger.debug(
+        { resource: paymentRequirements.resource },
+        "Database not configured, skipping resource registration",
+      );
+      return;
+    }
+
     try {
       const now = new Date();
       const resourceUrl = paymentRequirements.resource;
@@ -294,6 +303,19 @@ export class DiscoveryService {
     limit: number = 100,
     offset: number = 0,
   ): Promise<ListDiscoveryResponse> {
+    // Return empty result if database is not enabled
+    if (!this.configService.isDatabaseEnabled) {
+      return {
+        x402Version: 1,
+        items: [],
+        pagination: {
+          limit: Math.min(Math.max(1, limit), 1000),
+          offset: Math.max(0, offset),
+          total: 0,
+        },
+      };
+    }
+
     const maxLimit = 1000;
     const clampedLimit = Math.min(Math.max(1, limit), maxLimit);
     const clampedOffset = Math.max(0, offset);
@@ -453,6 +475,11 @@ export class DiscoveryService {
    * Can be called via a scheduled task
    */
   async cleanupInactiveResources(): Promise<number> {
+    // Skip cleanup if database is not enabled
+    if (!this.configService.isDatabaseEnabled) {
+      return 0;
+    }
+
     const hardDeleteThreshold = new Date();
     hardDeleteThreshold.setDate(hardDeleteThreshold.getDate() - 30);
 

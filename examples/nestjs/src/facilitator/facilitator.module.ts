@@ -5,9 +5,17 @@ import { FacilitatorService } from "./facilitator.service";
 import { HealthController } from "./health.controller";
 import { MetricsModule } from "../common/metrics/metrics.module";
 import { DiscoveryModule } from "../discovery/discovery.module";
+import { ConfigModule } from "../config/config.module";
+import { ConfigService } from "../config/config.service";
 
 @Module({
-  imports: [TerminusModule, MetricsModule, DiscoveryModule],
+  imports: [
+    TerminusModule,
+    MetricsModule,
+    ConfigModule,
+    // Conditionally import DiscoveryModule only if database is enabled
+    ...(process.env.DATABASE_URL ? [DiscoveryModule] : []),
+  ],
   controllers: [FacilitatorController, HealthController],
   providers: [FacilitatorService],
 })

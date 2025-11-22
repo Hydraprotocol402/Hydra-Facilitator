@@ -91,6 +91,7 @@
     "@solana/kit": "^2.1.1",
     "@solana/transaction-confirmation": "^2.1.1",
     "viem": "^2.21.26",
+    "x402-hydra-facilitator": "link:",
     "zod": "^3.24.2"
   },
   "exports": {
@@ -158,5 +159,10 @@
   "files": [
     "dist",
     "README.md"
-  ]
+  ],
+  "pnpm": {
+    "overrides": {
+      "x402-hydra-facilitator": "link:"
+    }
+  }
 }
