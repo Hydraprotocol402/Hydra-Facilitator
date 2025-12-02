@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Optional,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { FacilitatorService } from "./facilitator.service";
@@ -16,12 +17,14 @@ import {
   PaymentRequirementsSchema,
 } from "x402-hydra-facilitator/types";
 import { PinoLogger } from "nestjs-pino";
+import { WalletPoolService } from "./wallet-pool";
 
 @Controller()
 export class FacilitatorController {
   constructor(
     private readonly facilitatorService: FacilitatorService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly walletPoolService?: WalletPoolService,
   ) {
     this.logger.setContext(FacilitatorController.name);
   }
@@ -134,5 +137,45 @@ export class FacilitatorController {
   @Throttle({ default: { limit: 200, ttl: 60000 } })
   async getSupported() {
     return await this.facilitatorService.getSupportedPaymentKinds();
+  }
+
+  @Get("pool/status")
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
+  getPoolStatus() {
+    if (!this.walletPoolService || !this.walletPoolService.isPoolAvailable()) {
+      return {
+        enabled: false,
+        message: "Wallet pool is not enabled or not initialized",
+        mode: "single-wallet",
+      };
+    }
+
+    const status = this.walletPoolService.getPoolStatus();
+    const config = this.walletPoolService.getConfig();
+
+    return {
+      enabled: true,
+      mode: "multi-wallet-pool",
+      config: {
+        selectionStrategy: config.selectionStrategy,
+        maxPendingPerWallet: config.maxPendingPerWallet,
+        minEthBalance: config.minEthBalance.toString(),
+        maxRetryAttempts: config.maxRetryAttempts,
+      },
+      status: {
+        totalWallets: status.totalWallets,
+        healthyWallets: status.healthyWallets,
+        unhealthyWallets: status.unhealthyWallets,
+        totalPendingTxs: status.totalPendingTxs,
+        averagePendingPerWallet: status.averagePendingPerWallet.toFixed(2),
+      },
+      wallets: status.wallets.map((w) => ({
+        address: w.address,
+        isHealthy: w.isHealthy,
+        pendingTxCount: w.pendingTxCount,
+        ethBalance: w.ethBalance,
+        lastUsedAt: w.lastUsedAt > 0 ? new Date(w.lastUsedAt).toISOString() : null,
+      })),
+    };
   }
 }

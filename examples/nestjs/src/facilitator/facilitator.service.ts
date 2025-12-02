@@ -20,6 +20,7 @@ import { ConfigService } from "../config/config.service";
 import { PinoLogger } from "nestjs-pino";
 import { MetricsService } from "../common/metrics/metrics.service";
 import { DiscoveryService } from "../discovery/discovery.service";
+import { WalletPoolService, WalletPoolError } from "./wallet-pool";
 import type { Address } from "viem";
 
 type ErrorCategory =
@@ -36,6 +37,7 @@ export class FacilitatorService implements OnModuleInit {
     private readonly logger: PinoLogger,
     private readonly metricsService: MetricsService,
     @Optional() private readonly discoveryService?: DiscoveryService,
+    @Optional() private readonly walletPoolService?: WalletPoolService,
   ) {
     this.logger.setContext(FacilitatorService.name);
   }
@@ -493,6 +495,9 @@ export class FacilitatorService implements OnModuleInit {
     const { network, scheme } = paymentRequirements;
 
     let signer: Signer;
+    let releaseWallet: ((txHash?: string, success?: boolean) => void) | null =
+      null;
+
     try {
       if (!this.configService.isNetworkAllowed(paymentRequirements.network)) {
         const errorClass = this.classifyError(new Error("Network not allowed"));
@@ -524,6 +529,21 @@ export class FacilitatorService implements OnModuleInit {
       }
 
       if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+        // Try to use wallet pool for EVM networks
+        if (
+          this.walletPoolService &&
+          this.configService.walletPoolEnabled &&
+          this.walletPoolService.isPoolAvailable()
+        ) {
+          const result = await this.settleWithWalletPool(
+            paymentPayload,
+            paymentRequirements,
+            startTime,
+          );
+          return result;
+        }
+
+        // Fall back to single wallet mode
         const privateKey = this.configService.evmPrivateKey;
         if (!privateKey) {
           const errorClass = this.classifyError(
@@ -700,10 +720,18 @@ export class FacilitatorService implements OnModuleInit {
 
       return result;
     } catch (error) {
+      // Release wallet if acquired
+      if (releaseWallet) {
+        releaseWallet(undefined, false);
+      }
+
       const duration = (Date.now() - startTime) / 1000;
       const errorClass = this.classifyError(error);
 
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof WalletPoolError
+      ) {
         this.metricsService.recordPaymentSettlement(
           network,
           scheme,
@@ -725,6 +753,9 @@ export class FacilitatorService implements OnModuleInit {
           "Payment settlement failed: validation error",
         );
 
+        if (error instanceof WalletPoolError) {
+          throw new BadRequestException(error.message);
+        }
         throw error;
       }
 
@@ -752,6 +783,181 @@ export class FacilitatorService implements OnModuleInit {
 
       throw new BadRequestException(`Settlement failed: ${errorClass.message}`);
     }
+  }
+
+  /**
+   * Settles a payment using the wallet pool with automatic retry on nonce errors
+   */
+  private async settleWithWalletPool(
+    paymentPayload: PaymentPayload,
+    paymentRequirements: PaymentRequirements,
+    startTime: number,
+  ): Promise<SettleResponse> {
+    const { network, scheme } = paymentRequirements;
+    const payer = this.extractPayerFromPayload(paymentPayload);
+    const amount = this.extractAmount(paymentPayload, paymentRequirements);
+    const maxRetries = this.configService.maxRetryAttempts;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let releaseWallet: ((txHash?: string, success?: boolean) => void) | null =
+        null;
+      let walletAddress: string | null = null;
+
+      try {
+        // Acquire a wallet from the pool
+        const acquisition = await this.walletPoolService!.acquireWallet(
+          paymentRequirements.network,
+        );
+        releaseWallet = acquisition.release;
+        walletAddress = acquisition.wallet.address;
+
+        this.logger.debug(
+          {
+            network,
+            walletAddress,
+            attempt: attempt + 1,
+            maxRetries: maxRetries + 1,
+          },
+          "Acquired wallet from pool for settlement",
+        );
+
+        // Track settlement time
+        const confirmationStartTime = Date.now();
+        const result = await settle(
+          acquisition.signer as Signer,
+          paymentPayload,
+          paymentRequirements,
+          this.configService.x402Config,
+        );
+
+        const settlementEndTime = Date.now();
+        const duration = (settlementEndTime - startTime) / 1000;
+        const confirmationWait =
+          (settlementEndTime - confirmationStartTime) / 1000;
+
+        // Release wallet with transaction hash
+        releaseWallet(result.transaction, result.success);
+
+        // Track pending transaction if successful
+        if (result.success && result.transaction) {
+          this.walletPoolService!.trackPendingTransaction(
+            walletAddress as `0x${string}`,
+            result.transaction,
+            acquisition.wallet.currentNonce,
+          );
+        }
+
+        const finalPayer = result.payer || payer || "unknown";
+        const reason = result.success
+          ? "none"
+          : result.errorReason || "unknown";
+
+        this.metricsService.recordPaymentSettlement(
+          network,
+          scheme,
+          result.success ? "success" : "failure",
+          reason,
+          duration,
+          confirmationWait,
+        );
+
+        if (result.success) {
+          this.metricsService.recordPaymentAmount(network, scheme, amount);
+
+          this.logger.info(
+            {
+              network,
+              scheme,
+              payer: finalPayer,
+              amount,
+              transaction: result.transaction,
+              duration,
+              confirmationWait,
+              walletAddress,
+              poolMode: true,
+            },
+            "Payment settled successfully via wallet pool",
+          );
+
+          // Auto-register resource in discovery catalog (async, non-blocking)
+          if (paymentRequirements.resource && this.discoveryService) {
+            this.discoveryService
+              .registerResource(paymentRequirements, paymentPayload.network)
+              .catch((error) => {
+                this.logger.warn(
+                  {
+                    error:
+                      error instanceof Error ? error.message : "Unknown error",
+                    resource: paymentRequirements.resource,
+                  },
+                  "Failed to register resource in discovery (non-critical)",
+                );
+              });
+          }
+        } else {
+          this.logger.warn(
+            {
+              network,
+              scheme,
+              payer: finalPayer,
+              amount,
+              duration,
+              errorReason: reason,
+              walletAddress,
+            },
+            "Payment settlement failed via wallet pool",
+          );
+        }
+
+        return result;
+      } catch (error) {
+        // Release wallet on error
+        if (releaseWallet) {
+          releaseWallet(undefined, false);
+        }
+
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Check if this is a nonce error and we should retry
+        if (
+          this.walletPoolService!.isNonceError(error) &&
+          attempt < maxRetries
+        ) {
+          this.logger.warn(
+            {
+              network,
+              walletAddress,
+              attempt: attempt + 1,
+              maxRetries: maxRetries + 1,
+              error: lastError.message,
+            },
+            "Nonce error detected, resetting and retrying with different wallet",
+          );
+
+          // Record nonce retry metric
+          if (walletAddress) {
+            this.metricsService.recordNonceRetry(network, walletAddress);
+            // Reset nonce for the problematic wallet
+            await this.walletPoolService!.resetWalletNonce(
+              walletAddress as `0x${string}`,
+            );
+          }
+
+          // Small delay before retry
+          await new Promise((resolve) =>
+            setTimeout(resolve, this.configService.retryDelayMs),
+          );
+          continue;
+        }
+
+        // Non-retryable error or max retries reached
+        throw error;
+      }
+    }
+
+    // All retries exhausted
+    throw lastError || new Error("Settlement failed after all retries");
   }
 
   async getSupportedPaymentKinds(): Promise<{ kinds: SupportedPaymentKind[] }> {

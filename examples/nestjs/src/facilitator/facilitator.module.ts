@@ -6,13 +6,14 @@ import { HealthController } from "./health.controller";
 import { MetricsModule } from "../common/metrics/metrics.module";
 import { DiscoveryModule } from "../discovery/discovery.module";
 import { ConfigModule } from "../config/config.module";
-import { ConfigService } from "../config/config.service";
+import { WalletPoolModule } from "./wallet-pool/wallet-pool.module";
 
 @Module({
   imports: [
     TerminusModule,
     MetricsModule,
     ConfigModule,
+    WalletPoolModule,
     // Conditionally import DiscoveryModule only if database is enabled
     ...(process.env.DATABASE_URL ? [DiscoveryModule] : []),
   ],

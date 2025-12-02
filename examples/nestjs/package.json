@@ -18,6 +18,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:migrate:deploy": "prisma migrate deploy",
+    "generate:wallets": "npx ts-node scripts/generate-facilitator-wallets.ts",
+    "fund:wallets": "npx ts-node scripts/fund-facilitator-wallets.ts",
     "lint": "eslint . --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -54,6 +56,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "uuid": "^13.0.0",
+    "dotenv": "^16.4.5",
+    "viem": "^2.21.0",
     "x402-hydra-facilitator": "^0.7.0"
   },
   "devDependencies": {

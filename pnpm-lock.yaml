@@ -153,6 +153,9 @@ importers:
       class-validator:
         specifier: ^0.14.2
         version: 0.14.2
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       helmet:
         specifier: ^8.1.0
         version: 8.1.0
@@ -177,6 +180,9 @@ importers:
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
+      viem:
+        specifier: ^2.21.0
+        version: 2.38.5(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       x402-hydra-facilitator:
         specifier: link:../..
         version: link:../..

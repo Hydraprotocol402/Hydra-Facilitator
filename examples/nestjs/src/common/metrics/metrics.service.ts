@@ -21,6 +21,13 @@ export class MetricsService {
   private readonly paymentSettlementDuration: Histogram<string>;
   private readonly paymentConfirmationWaitDuration: Histogram<string>;
   private readonly facilitatorGasBalance: Gauge<string>;
+  // Wallet pool metrics
+  private readonly walletPoolSizeGauge: Gauge<string>;
+  private readonly walletPoolHealthyGauge: Gauge<string>;
+  private readonly walletPoolPendingTxGauge: Gauge<string>;
+  private readonly walletAcquisitionCounter: Counter<string>;
+  private readonly walletPoolExhaustionCounter: Counter<string>;
+  private readonly nonceRetryCounter: Counter<string>;
   private readonly serviceName: string;
 
   constructor() {
@@ -134,6 +141,49 @@ export class MetricsService {
     this.facilitatorGasBalance = new Gauge({
       name: "facilitator_gas_balance",
       help: "Facilitator wallet gas balance in native token units (ETH for EVM, SOL for SVM)",
+      labelNames: ["network", "wallet_address"],
+      registers: [register],
+    });
+
+    // Wallet pool metrics
+    this.walletPoolSizeGauge = new Gauge({
+      name: "facilitator_pool_size",
+      help: "Number of wallets in the facilitator pool",
+      labelNames: ["network"],
+      registers: [register],
+    });
+
+    this.walletPoolHealthyGauge = new Gauge({
+      name: "facilitator_pool_healthy_wallets",
+      help: "Number of healthy wallets in the facilitator pool",
+      labelNames: ["network"],
+      registers: [register],
+    });
+
+    this.walletPoolPendingTxGauge = new Gauge({
+      name: "facilitator_pool_pending_tx_count",
+      help: "Total pending transactions across all wallets in the pool",
+      labelNames: ["network"],
+      registers: [register],
+    });
+
+    this.walletAcquisitionCounter = new Counter({
+      name: "facilitator_wallet_acquisition_total",
+      help: "Total number of wallet acquisitions from the pool",
+      labelNames: ["network", "wallet_address"],
+      registers: [register],
+    });
+
+    this.walletPoolExhaustionCounter = new Counter({
+      name: "facilitator_pool_exhaustion_total",
+      help: "Number of times all wallets in the pool were unavailable",
+      labelNames: ["network"],
+      registers: [register],
+    });
+
+    this.nonceRetryCounter = new Counter({
+      name: "facilitator_nonce_retry_total",
+      help: "Number of transaction retries due to nonce errors",
       labelNames: ["network", "wallet_address"],
       registers: [register],
     });
@@ -317,5 +367,48 @@ export class MetricsService {
       .replace(/\/[a-f0-9-]{36}/gi, "/:uuid")
       .replace(/\/[a-zA-Z0-9]{32,}/g, "/:hash")
       .split("?")[0]; // Remove query parameters
+  }
+
+  // ==================== Wallet Pool Metrics ====================
+
+  /**
+   * Records the current status of the wallet pool
+   */
+  recordWalletPoolStatus(
+    network: string,
+    totalWallets: number,
+    healthyWallets: number,
+    pendingTxCount: number,
+  ): void {
+    this.walletPoolSizeGauge.set({ network }, totalWallets);
+    this.walletPoolHealthyGauge.set({ network }, healthyWallets);
+    this.walletPoolPendingTxGauge.set({ network }, pendingTxCount);
+  }
+
+  /**
+   * Records a wallet acquisition from the pool
+   */
+  recordWalletAcquisition(network: string, walletAddress: string): void {
+    this.walletAcquisitionCounter.inc({
+      network,
+      wallet_address: walletAddress,
+    });
+  }
+
+  /**
+   * Records when the wallet pool is exhausted (no available wallets)
+   */
+  recordWalletPoolExhaustion(network: string): void {
+    this.walletPoolExhaustionCounter.inc({ network });
+  }
+
+  /**
+   * Records a nonce retry event
+   */
+  recordNonceRetry(network: string, walletAddress: string): void {
+    this.nonceRetryCounter.inc({
+      network,
+      wallet_address: walletAddress,
+    });
   }
 }

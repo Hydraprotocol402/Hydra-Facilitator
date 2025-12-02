@@ -3,38 +3,91 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Optional,
   UseGuards,
 } from "@nestjs/common";
 import {
   HealthCheckService,
   HealthCheck,
   MemoryHealthIndicator,
+  HealthIndicatorResult,
 } from "@nestjs/terminus";
 import { ApiKeyGuard, RequireApiKey } from "../common/guards/api-key.guard";
+import { WalletPoolService } from "./wallet-pool";
 
 @Controller("health")
 export class HealthController {
   constructor(
     private health: HealthCheckService,
     private memory: MemoryHealthIndicator,
+    @Optional() private walletPoolService?: WalletPoolService,
   ) {}
 
   @Get()
   @HealthCheck()
   check() {
-    return this.health.check([
+    const checks = [
       () => this.memory.checkHeap("memory_heap", 500 * 1024 * 1024), // 500MB
       () => this.memory.checkRSS("memory_rss", 1000 * 1024 * 1024), // 1GB
-    ]);
+    ];
+
+    // Add wallet pool health check if available
+    if (this.walletPoolService && this.walletPoolService.isPoolAvailable()) {
+      checks.push(() => this.checkWalletPool());
+    }
+
+    return this.health.check(checks);
   }
 
   @Get("ready")
   @HealthCheck()
   ready() {
-    // Readiness check - verify service is ready to handle requests
-    return this.health.check([
+    const checks = [
       () => this.memory.checkHeap("memory_heap", 500 * 1024 * 1024),
-    ]);
+    ];
+
+    // Add wallet pool readiness check if available
+    if (this.walletPoolService && this.walletPoolService.isPoolAvailable()) {
+      checks.push(() => this.checkWalletPoolReady());
+    }
+
+    return this.health.check(checks);
+  }
+
+  /**
+   * Custom health indicator for wallet pool
+   */
+  private async checkWalletPool(): Promise<HealthIndicatorResult> {
+    const status = this.walletPoolService!.getPoolStatus();
+    const isHealthy = status.healthyWallets > 0;
+
+    return {
+      wallet_pool: {
+        status: isHealthy ? "up" : "down",
+        totalWallets: status.totalWallets,
+        healthyWallets: status.healthyWallets,
+        unhealthyWallets: status.unhealthyWallets,
+        pendingTxs: status.totalPendingTxs,
+      },
+    };
+  }
+
+  /**
+   * Readiness check for wallet pool - requires at least half of wallets to be healthy
+   */
+  private async checkWalletPoolReady(): Promise<HealthIndicatorResult> {
+    const status = this.walletPoolService!.getPoolStatus();
+    const minHealthyRequired = Math.ceil(status.totalWallets / 2);
+    const isReady = status.healthyWallets >= minHealthyRequired;
+
+    return {
+      wallet_pool_ready: {
+        status: isReady ? "up" : "down",
+        healthyWallets: status.healthyWallets,
+        required: minHealthyRequired,
+        totalWallets: status.totalWallets,
+      },
+    };
   }
 
   @Get("live")
